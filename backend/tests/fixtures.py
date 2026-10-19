@@ -1,5 +1,7 @@
 """Shared fixtures restricted to an explicitly marked disposable database."""
 
+from uuid import uuid4
+
 import pytest
 
 from backend import db, manage
@@ -22,3 +24,22 @@ def database(monkeypatch):
         connection.execute("DELETE FROM settings WHERE key != 'purpose'")
     manage.seed()
     return url
+
+
+@pytest.fixture
+def claim_run(database):
+    run_id = str(uuid4())
+    with db.connect() as connection:
+        connection.execute(
+            "INSERT INTO claims (id, policy_id, customer_id, state, payload) "
+            "SELECT 'TEST-CLAIM', policy_id, customer_id, 'in_progress', "
+            "jsonb_set(payload, '{claim_id}', '\"TEST-CLAIM\"') "
+            "FROM claims WHERE id = 'CLM-1001'"
+        )
+        connection.execute(
+            "INSERT INTO runs (id, claim_id, thread_id, state, deadline) "
+            "VALUES (%s, 'TEST-CLAIM', 'test-thread', 'running', "
+            "now() + interval '60 seconds')",
+            (run_id,),
+        )
+    return run_id

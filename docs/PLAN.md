@@ -49,7 +49,7 @@ Success criteria:
 
 - [ ] Document cross-platform `uv run` commands for initialization and seeding, plus development/test connection variables. Confirm the selected database targets before running schema changes.
 - [ ] Run initialization and seeding on the dedicated development database; a count query returns exactly 25 queue claims, all initially waiting, with valid customer and policy relationships, three plans and three handlers.
-- [ ] Seed twice; counts are unchanged. Create a synthetic decision, seed again and verify that the decision and workflow state survive.
+- [x] Seed twice; counts are unchanged. Create a synthetic decision, seed again and verify that the decision and workflow state survive.
 - [ ] A synthetic write/read test preserves nested documents and exact cents. Restart the backend and confirm saved business state remains available.
 - [x] Tests prove the loader opens only the named seed files and never traverses evaluation, security or manual files; no evaluation answers appear in application storage.
 - [ ] Verify the application schema is outside Data API exposure and public API roles lack access. Verify database secrets are absent from browser-facing responses and assets.
@@ -94,13 +94,13 @@ Use the configured $1,000 limit and check the full recorded payout, not the amou
 
 Success criteria, using synthetic claims in the disposable test database:
 
-- [ ] Approved payouts of `$999.99` and `$1,000.00` can be simulated without sign-off. `$1,000.01` produces waiting-for-sign-off and payment returns `409` with no payment record.
-- [ ] A direct API payment attempt before sign-off fails, including an attempt to pay only `$1,000.00` against a larger approved payout. A prompt cannot override the backend rule.
-- [ ] An unknown handler is rejected; a handler without over-limit permission is rejected with `403`. An eligible handler can sign off; the same full payout can then be simulated and the queue shows decided.
-- [ ] Declined, referred and undecided claims cannot be paid. Negative, zero and malformed payment amounts return `422`; amounts that differ from the approval return `409`.
-- [ ] Repeating the same sign-off/payment returns the recorded result without another write. Concurrent payment calls produce one payment record; concurrent decision submissions cannot replace a completed decision.
-- [ ] Read responses distinguish the original outcome, sign-off and payment. All money remains exact to the cent. Each mutation has a tested error response and OpenAPI metadata.
-- [ ] Run `npm run check:python`; all checks and coverage pass.
+- [x] Approved payouts of `$999.99` and `$1,000.00` can be simulated without sign-off. `$1,000.01` produces waiting-for-sign-off and payment returns `409` with no payment record.
+- [x] A direct API payment attempt before sign-off fails, including an attempt to pay only `$1,000.00` against a larger approved payout. A prompt cannot override the backend rule.
+- [x] An unknown handler is rejected; a handler without over-limit permission is rejected with `403`. An eligible handler can sign off; the same full payout can then be simulated and the queue shows decided.
+- [x] Declined, referred and undecided claims cannot be paid. Negative, zero and malformed payment amounts return `422`; amounts that differ from the approval return `409`.
+- [x] Repeating the same sign-off/payment returns the recorded result without another write. Concurrent payment calls produce one payment record; concurrent decision submissions cannot replace a completed decision.
+- [x] Read responses distinguish the original outcome, sign-off and payment. All money remains exact to the cent. Each mutation has a tested error response and OpenAPI metadata.
+- [x] Run `npm run check:python`; all checks and coverage pass.
 
 ## Phase 4: Agent execution and visible activity
 

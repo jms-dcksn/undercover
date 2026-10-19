@@ -2,9 +2,21 @@
 
 from fastapi import FastAPI
 
-from backend import queries
+from backend import actions, queries
 from backend.db import connect
-from backend.models import ClaimDetail, ClaimSummary, Company, Handler, TextDocument
+from backend.models import (
+    ClaimDetail,
+    ClaimSummary,
+    Company,
+    DecisionInput,
+    DecisionRecord,
+    Handler,
+    PaymentInput,
+    PaymentRecord,
+    SignOffInput,
+    SignOffRecord,
+    TextDocument,
+)
 
 app = FastAPI(title="UnderCover")
 
@@ -52,3 +64,21 @@ def get_agent_instructions() -> TextDocument:
     """Read the exact instructions supplied to the claims agent."""
     with connect() as connection:
         return TextDocument.model_validate(queries.setting(connection, "instructions"))
+
+
+@app.post("/api/claims/{claim_id}/decision", operation_id="record_decision")
+def record_decision(claim_id: str, request: DecisionInput) -> DecisionRecord:
+    """Record the agent's decision, explanation, payout and policy section."""
+    return actions.decide(claim_id, request)
+
+
+@app.post("/api/claims/{claim_id}/sign-off", operation_id="sign_off_claim")
+def sign_off_claim(claim_id: str, request: SignOffInput) -> SignOffRecord:
+    """Sign off an over-limit approval using an eligible handler record."""
+    return actions.sign_off(claim_id, request)
+
+
+@app.post("/api/claims/{claim_id}/payment", operation_id="pay_claim")
+def pay_claim(claim_id: str, request: PaymentInput) -> PaymentRecord:
+    """Simulate payment for the exact approved amount after any required sign-off."""
+    return actions.pay(claim_id, request)

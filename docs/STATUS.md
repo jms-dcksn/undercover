@@ -1,6 +1,6 @@
 # Status
 
-Pilot implementation is in progress. Phases 1–2 add private Postgres storage, repeatable seed loading and read APIs for the queue, full claims, policy wording, company, handlers and agent instructions. The agent and dashboard are still the initial skeleton.
+Pilot implementation is in progress. Phases 1–3 add private Postgres storage, seed loading, read APIs and transactional decisions, handler sign-off and simulated payments. The agent and dashboard are still the initial skeleton.
 
 ## Setup
 
@@ -28,5 +28,5 @@ Run `npm run check` for all checks or `npm run check:python` for Python checks.
 ## Verification
 
 - Local disposable Postgres: 25 waiting claims, three plans and three handlers; repeat seeding preserves workflow state and nested data. Application tables have RLS enabled.
-- Python checks: 15 tests passed, 96% coverage; lint, formatting and types pass. API tests verify full claim documents/history, the read-only instructions and required operation metadata.
+- Python checks: 32 tests passed, 99% coverage; lint, formatting and types pass. API tests cover full records, instructions, operation metadata, the exact $1,000 boundary, sign-off eligibility, invalid/partial payments, concurrent requests and preservation across repeat seeding.
 - Supabase development initialization, API exposure and restart checks are pending connection details. No Supabase project has been modified.
