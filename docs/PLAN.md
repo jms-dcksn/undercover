@@ -73,12 +73,12 @@ Proposed operations:
 
 Success criteria:
 
-- [ ] `GET /api/health` returns `200 {"status":"ok"}`. `GET /api/claims` returns 25 records with the documented queue state values.
-- [ ] `GET /api/claims/CLM-1001` returns the complete claim, `POL-2001`, its Premium plan and the linked customer's existing history. Compare against the allowed source files.
-- [ ] An unknown claim returns `404` with a useful error. Read APIs never return database credentials or arbitrary filesystem content.
-- [ ] Wording and instructions endpoints return the expected full text; there is no API for modifying instructions or fetching the manual/evaluation data.
-- [ ] An OpenAPI test verifies unique `operation_id` values, one-line route docstrings and required inputs only for every operation.
-- [ ] Run `npm run check:python`; all checks and coverage pass.
+- [x] `GET /api/health` returns `200 {"status":"ok"}`. `GET /api/claims` returns 25 records with the documented queue state values.
+- [x] `GET /api/claims/CLM-1001` returns the complete claim, `POL-2001`, its Premium plan and the linked customer's existing history. Compare against the allowed source files.
+- [x] An unknown claim returns `404` with a useful error. Read APIs never return database credentials or arbitrary filesystem content.
+- [x] Wording and instructions endpoints return the expected full text; there is no API for modifying instructions or fetching the manual/evaluation data.
+- [x] An OpenAPI test verifies unique `operation_id` values, one-line route docstrings and required inputs only for every operation.
+- [x] Run `npm run check:python`; all checks and coverage pass.
 
 ## Phase 3: Decisions, sign-off and simulated payment
 
