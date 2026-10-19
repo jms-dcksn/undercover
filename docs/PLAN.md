@@ -1,8 +1,8 @@
 # Pilot plan
 
-Build a local claims platform around the existing FastAPI, LangChain and React skeleton. Use Supabase/Postgres as specified in `TECH_STACK.md`. Keep the policy decision with the agent and enforce payment rules in the backend.
+Build a local claims platform around the existing FastAPI, LangChain and React skeleton. Use local Postgres as specified in `TECH_STACK.md`. Keep the policy decision with the agent and enforce payment rules in the backend.
 
-All six phases are implemented and locally verified. Supabase initialization and hosted access checks remain pending until the development connection and project are confirmed; unchecked criteria below identify that remaining work.
+All six pilot phases and the local-only storage update are implemented and verified. Development and tests run on separate local Postgres databases.
 
 ## Scope and decisions for review
 
@@ -12,17 +12,17 @@ All six phases are implemented and locally verified. Supabase initialization and
 - Keep sign-in, real payments, customer messages, evaluation tooling, security-lab features and AWS deployment out of scope. Never read or import `data/evals/` or `data/security/`.
 - Tests use a stub model and a dedicated disposable Postgres database. No test calls OpenRouter or uses a shared business database.
 
-### Decision card: storage
+### Approved storage choice
 
-**Recommendation:** connect FastAPI to Supabase Postgres with the existing psycopg dependency. Keep database credentials server-side and application tables in a private schema accessed through FastAPI. The dashboard and agent use HTTP only.
+**Recommendation:** connect FastAPI to local Postgres with the existing psycopg dependency. Keep database connections server-side and application tables in a private schema accessed through FastAPI. The dashboard and agent use HTTP only.
 
 **Proposed shape:** keyed customer, policy, plan, handler and claim records; company settings and policy wording; separate decisions, sign-offs, simulated payments, runs and activity records. Preserve nested seed documents as JSONB rather than splitting every receipt and traveler into tables. Use typed columns for identifiers, relationships, workflow state, money and timestamps. Use decimal amounts in Python and `NUMERIC` in Postgres.
 
 **Why:** this follows the edited tech stack, keeps the pilot small and makes the payment check and write transactional. It avoids introducing a second storage implementation for tests.
 
-**Prerequisite and impact:** before implementation touches a database, identify a dedicated development target and a separate disposable test target. Review this schema proposal before applying it. No paid plan, project provisioning or changes to an existing shared database are assumed. Keep connection details in ignored environment configuration and placeholders in setup documentation.
+**Local setup:** `uv run -m backend.local` starts Postgres with data in `.local/postgres`, creates separate `undercover` and `undercover_test` databases, initializes the schema and seeds development records. It updates only `DATABASE_URL` and `TEST_DATABASE_URL` in the ignored `.env`. Stopping the launcher retains the database files; restarting it preserves decisions and payments.
 
-Use the connection string supplied by Supabase; select direct or session-pooler connectivity for the local persistent backend based on network support. See [database connections](https://supabase.com/docs/guides/database/connecting-to-postgres) and [API exposure](https://supabase.com/docs/guides/api/securing-your-api). Verify current guidance during implementation.
+An existing local Postgres installation can supply those two connection strings instead. Require loopback addresses or absolute local socket paths. Tests must use a different database or server port, and an explicit disposable marker, before clearing test records.
 
 ## Workflow contract
 
@@ -43,16 +43,16 @@ The agent can record a decision and request payment. Only the handler screen off
 
 Create the reviewed schema, database access module and explicit initialization/seed commands. Import only an allowlist of business files. Convert seed claim status `open` to `waiting`. Import the supplied reference records without adding any other claims to the queue. Store the read-only agent instructions in the backend so the screen and agent share one source.
 
-Keep schema setup separate from normal application startup. Seeding must be repeatable without overwriting decisions, payments or activity. Use a private application schema with no access for Supabase's public API roles; do not expose database credentials in Vite configuration.
+Keep schema setup separate from normal API startup. The explicit local database launcher initializes and seeds storage. Seeding must be repeatable without overwriting decisions, payments or activity. Use a private application schema with no `PUBLIC` access; do not expose database connections in Vite configuration.
 
 Success criteria:
 
-- [ ] Document cross-platform `uv run` commands for initialization and seeding, plus development/test connection variables. Confirm the selected database targets before running schema changes.
-- [ ] Run initialization and seeding on the dedicated development database; a count query returns exactly 25 queue claims, all initially waiting, with valid customer and policy relationships, three plans and three handlers.
+- [x] Document cross-platform local database startup, initialization and seeding, plus the separate development/test targets.
+- [x] Run initialization and seeding on the dedicated development database; a count query returns exactly 25 queue claims, all initially waiting, with valid customer and policy relationships, three plans and three handlers.
 - [x] Seed twice; counts are unchanged. Create a synthetic decision, seed again and verify that the decision and workflow state survive.
 - [x] A synthetic write/read test preserves nested documents and exact cents. Restart the backend and confirm saved business state remains available.
 - [x] Tests prove the loader opens only the named seed files and never traverses evaluation, security or manual files; no evaluation answers appear in application storage.
-- [ ] Verify the application schema is outside Data API exposure and public API roles lack access. Verify database secrets are absent from browser-facing responses and assets.
+- [x] Verify the private application schema has no `PUBLIC` usage privilege, tables have RLS enabled and database connection details stay out of browser responses and assets.
 - [x] Run `npm run check:python`; lint, formatting, types and tests pass with at least 80% Python coverage.
 
 ## Phase 2: Read APIs and claim details
@@ -126,7 +126,7 @@ Success criteria:
 
 ## Phase 5: Handler dashboard
 
-Build a queue and claim detail view with a clear selected claim. Include all claim documents, linked policy/plan, customer history, decision, payout, policy reference, sign-off/payment status and live activity. Add a read-only instructions view. Poll while a run is active and refresh the queue after mutations; no WebSocket or Supabase Realtime dependency is needed.
+Build a queue and claim detail view with a clear selected claim. Include all claim documents, linked policy/plan, customer history, decision, payout, policy reference, sign-off/payment status and live activity. Add a read-only instructions view. Poll while a run is active and refresh the queue after mutations.
 
 Offer a run button for waiting claims, a handler selector/sign-off action for eligible approvals and a separate simulated payment action for approved unpaid claims. Automatically simulate eligible payments through the agent; the manual action also permits completing a payment after sign-off or a failed agent payment. Display backend errors and block repeated submissions while a request is pending.
 
@@ -163,4 +163,12 @@ After review and an implementation request, build the phases in order. For each 
 
 Automated checks establish workflow and payment-control correctness. They do not establish handler-level model accuracy. A paid live-model smoke run requires explicit authorization; evaluation against `data/evals/` remains separate future work and requires permission to open it.
 
-Local verification uses the same Postgres schema and transactions as development. `uv run -m e2e.local` provides a disposable test database without a system service. Supabase-specific verification still requires the confirmed development project and connection; no hosted schema has been applied yet.
+Local verification uses the same Postgres schema and transactions as development. The development launcher prepares both local databases. `uv run -m e2e.local` remains available for a temporary test server that deletes its data on exit.
+
+## Local-only storage update
+
+- [x] Remove provider-specific connection matching, roles and setup requirements from the product and its documentation.
+- [x] Start persistent local Postgres, seed 25 development claims and configure a separate marked test database while preserving existing non-database environment settings.
+- [x] Verify stopping and restarting local Postgres retains development state and repeat seeding does not duplicate records.
+- [x] Reject remote database hosts and prevent test cleanup from targeting development through a loopback alias or different login.
+- [x] Run the full check suite and verify the dashboard reads the seeded local development database.

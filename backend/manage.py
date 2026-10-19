@@ -96,13 +96,12 @@ def seed() -> None:
             )
 
 
-def main() -> None:
-    """Run the selected explicit setup operation."""
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["init", "seed", "init-test"])
-    command = parser.parse_args().command
-    if command == "init-test":
-        os.environ["DATABASE_URL"] = test_database_url()
+def initialize_test() -> None:
+    """Mark a separate local database as disposable without relabeling app data."""
+    url = test_database_url()
+    development = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = url
+    try:
         with connect() as connection:
             existing = connection.execute(
                 "SELECT to_regnamespace('undercover') AS schema"
@@ -123,6 +122,20 @@ def main() -> None:
                 "INSERT INTO settings VALUES ('purpose', %s) ON CONFLICT DO NOTHING",
                 (Jsonb({"value": "test"}),),
             )
+    finally:
+        if development is None:
+            del os.environ["DATABASE_URL"]
+        else:
+            os.environ["DATABASE_URL"] = development
+
+
+def main() -> None:
+    """Run the selected explicit setup operation."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("command", choices=["init", "seed", "init-test"])
+    command = parser.parse_args().command
+    if command == "init-test":
+        initialize_test()
     elif command == "init":
         initialize()
     else:

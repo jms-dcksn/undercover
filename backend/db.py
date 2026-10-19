@@ -1,6 +1,7 @@
 """Postgres connections for the private application schema."""
 
 import os
+from pathlib import Path
 from typing import Any
 
 import psycopg
@@ -23,6 +24,7 @@ def connect() -> Connection:
     url = os.environ.get("DATABASE_URL")
     if not url:
         raise DatabaseNotConfigured("Set DATABASE_URL in the ignored root .env file.")
+    database_identity(url)
     return psycopg.Connection[Row].connect(
         url,
         row_factory=dict_row,
@@ -31,23 +33,25 @@ def connect() -> Connection:
     )
 
 
-def database_identity(url: str) -> tuple[str, str, str, str]:
-    """Identify a database without comparing passwords or SSL options."""
+def database_identity(url: str) -> tuple[str, str, str]:
+    """Validate a local connection and identify its server and database."""
     values = conninfo_to_dict(url)
-    host = str(values.get("host", "localhost"))
+    host = str(values.get("host", os.getenv("PGHOST", "localhost")))
     name = str(values.get("dbname", "postgres"))
-    if host.endswith(".pooler.supabase.com"):
-        project = str(values.get("user", "")).rsplit(".", 1)[-1]
-        return "supabase", project, name, ""
-    if host.startswith("db.") and host.endswith(".supabase.co"):
-        return "supabase", host.split(".")[1], name, ""
-    if host in {"localhost", "127.0.0.1", "::1"}:
+    loopback = {"localhost", "127.0.0.1", "::1"}
+    address = str(values.get("hostaddr", os.getenv("PGHOSTADDR", "")))
+    if address and address not in {"127.0.0.1", "::1"}:
+        raise DatabaseNotConfigured("Postgres must use a local loopback address.")
+    if host in loopback:
         host = "localhost"
+    elif Path(host).is_absolute():
+        host = str(Path(host).resolve())
+    else:
+        raise DatabaseNotConfigured("Postgres must use localhost or a local socket.")
     return (
         host,
-        str(values.get("port", "5432")),
+        str(values.get("port", os.getenv("PGPORT", "5432"))),
         name,
-        "",
     )
 
 

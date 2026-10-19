@@ -12,6 +12,8 @@ UnderCover Travel Insurance is a fictional travel insurer. Its claims handlers w
 
 ### Start here
 
+This fork uses only local Postgres for product storage, including later builds. Adapt course briefs to this choice; keep development and test databases separate.
+
 IMPORTANT: before you plan, build or change anything in the product, or answer questions about it, read each of these files in full:
 
 1. `docs/SPEC.md`: what the business needs
@@ -36,7 +38,7 @@ Each build day has a brief in `labs/`, which the student copies into `docs/` at 
 |---|---|---|---|
 | Week 1 Day 3 | none | `docs/SPEC.md` is the brief | The pilot: the backend, the dashboard and a first agent |
 | Week 1 Day 5 | `week1day5_product_HARNESS.md` | `docs/HARNESS.md` | The agent's harness: its tools, middleware and instructions |
-| Week 2 Day 3 | `week2day3_product_DURABLE.md` | `docs/DURABLE.md` | Durable state: Supabase and the claim agent as a LangGraph graph |
+| Week 2 Day 3 | `week2day3_product_DURABLE.md` | `docs/DURABLE.md` | Durable state: local Postgres and the claim agent as a LangGraph graph |
 | Week 2 Day 4 | `week2day4_product_SWARM.md` | `docs/SWARM.md` | A dispatcher with a swarm of claim agents, and evaluations |
 | Week 2 Day 5 | `week2day5_product_IMPROVE.md` | `docs/IMPROVE.md` | The agent's configuration in versions, an improver agent and sign-in |
 | Week 3 Day 2 | `week3day2_product_SECURE.md` | `docs/SECURE.md` | The agent's API key, a check for hidden instructions, and the app ready for AWS Lambda |

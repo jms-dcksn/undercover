@@ -5,9 +5,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from pgserver.postgres_server import get_server
-from psycopg.types.json import Jsonb
 
-from backend import db, manage
+from backend import manage
 
 
 def main() -> None:
@@ -15,19 +14,8 @@ def main() -> None:
     with TemporaryDirectory(prefix="undercover-tests-") as directory:
         server = get_server(Path(directory) / "postgres", cleanup_mode="stop")
         try:
-            development = os.environ.get("DATABASE_URL")
             os.environ["TEST_DATABASE_URL"] = server.get_uri()
-            os.environ["DATABASE_URL"] = db.test_database_url()
-            manage.initialize()
-            with db.connect() as connection:
-                connection.execute(
-                    "INSERT INTO settings VALUES ('purpose', %s)",
-                    (Jsonb({"value": "test"}),),
-                )
-            if development is None:
-                del os.environ["DATABASE_URL"]
-            else:
-                os.environ["DATABASE_URL"] = development
+            manage.initialize_test()
             print("Set this line in .env, then run npm run check in another terminal:")
             print(f"TEST_DATABASE_URL={server.get_uri()}")
             input("Press Enter to stop and remove this test database. ")

@@ -79,17 +79,8 @@ CREATE INDEX IF NOT EXISTS policy_customer ON undercover.policies (customer_id);
 
 DO $$
 DECLARE
-    api_role TEXT;
     app_table RECORD;
 BEGIN
-    FOREACH api_role IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
-        IF EXISTS (SELECT FROM pg_roles WHERE rolname = api_role) THEN
-            EXECUTE format('REVOKE ALL ON SCHEMA undercover FROM %I', api_role);
-            EXECUTE format('REVOKE ALL ON ALL TABLES IN SCHEMA undercover FROM %I', api_role);
-            EXECUTE format('REVOKE ALL ON ALL SEQUENCES IN SCHEMA undercover FROM %I', api_role);
-            EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA undercover REVOKE ALL ON TABLES FROM %I', api_role);
-        END IF;
-    END LOOP;
     FOR app_table IN SELECT tablename FROM pg_tables WHERE schemaname = 'undercover' LOOP
         EXECUTE format('ALTER TABLE undercover.%I ENABLE ROW LEVEL SECURITY', app_table.tablename);
     END LOOP;

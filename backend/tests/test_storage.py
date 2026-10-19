@@ -76,14 +76,11 @@ def test_private_schema(database):
             "SELECT count(*) AS count FROM pg_tables "
             "WHERE schemaname = 'undercover' AND NOT rowsecurity"
         ).fetchone() == {"count": 0}
-        roles = connection.execute(
-            "SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated')"
-        ).fetchall()
-        for role in roles:
-            assert connection.execute(
-                "SELECT has_schema_privilege(%s, 'undercover', 'USAGE') AS allowed",
-                (role["rolname"],),
-            ).fetchone() == {"allowed": False}
+        assert connection.execute(
+            "SELECT count(*) AS count FROM pg_namespace n, "
+            "aclexplode(n.nspacl) a WHERE n.nspname = 'undercover' "
+            "AND a.grantee = 0 AND a.privilege_type = 'USAGE'"
+        ).fetchone() == {"count": 0}
 
 
 def test_database_configuration(monkeypatch):
@@ -100,13 +97,11 @@ def test_database_configuration(monkeypatch):
     assert db.test_database_url() == "postgresql://localhost/test"
 
 
-def test_supabase_connection_aliases(monkeypatch):
-    monkeypatch.setenv(
-        "DATABASE_URL", "postgresql://postgres@db.example.supabase.co/postgres"
-    )
+def test_loopback_connection_aliases(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://one@localhost:5432/undercover")
     monkeypatch.setenv(
         "TEST_DATABASE_URL",
-        "postgresql://postgres.example@aws-1.pooler.supabase.com:6543/postgres",
+        "postgresql://two@[::1]:5432/undercover?sslmode=disable",
     )
     with pytest.raises(RuntimeError, match="must differ"):
         db.test_database_url()
@@ -124,6 +119,7 @@ def test_init_test_refuses_existing_application(database, monkeypatch):
         with pytest.raises(RuntimeError, match="existing application"):
             manage.main()
     finally:
+        monkeypatch.setenv("DATABASE_URL", database)
         with db.connect() as connection:
             connection.execute(
                 "INSERT INTO settings VALUES ('purpose', %s)",

@@ -77,7 +77,7 @@ def test_database_configuration_errors(monkeypatch):
     response = client.get("/api/claims")
     assert response.status_code == 503
     assert "Set DATABASE_URL" in response.json()["detail"]
-    monkeypatch.setenv("DATABASE_URL", "configured")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/undercover")
 
     def unavailable(*args, **kwargs):
         raise psycopg.OperationalError("private connection details")

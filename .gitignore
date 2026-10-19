@@ -54,6 +54,7 @@ labs/undercoverlab/agentcore/.cache/
 labs/undercoverlab/agentcore/aws-targets.json
 
 # Local databases and data
+.local/
 *.db
 *.sqlite
 *.sqlite3

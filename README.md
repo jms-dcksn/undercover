@@ -10,6 +10,12 @@ This is the repo that accompanies the course. UnderCover is a fictional travel i
 
 _If you're looking at this in VS Code or Cursor, right-click `README.md` in the Explorer on the left and choose **Open Preview** to see it formatted._
 
+## Run this fork
+
+The pilot uses local Postgres. After `uv sync` and `npm install`, run `uv run -m backend.local` in one terminal and `npm run dev` in another. The database launcher configures `.env` and seeds the 25 claims; add your `OPENROUTER_API_KEY` for real agent runs. Open `http://localhost:5173`.
+
+Run `npm run check` while Postgres is running. Development data persists in the ignored `.local/postgres` directory; tests use a separate database. See [docs/STATUS.md](docs/STATUS.md) for setup and limitations.
+
 ## Key links
 
 - My curriculum of courses on Udemy: [edwarddonner.com/curriculum](https://edwarddonner.com/curriculum)
@@ -139,7 +145,7 @@ This week UnderCover goes into production on AWS, and the free route uses Render
 | `git checkout week1day5-start` | My build so far, with the brief in `docs/HARNESS.md` |
 | `git checkout week1day5-end` | The agent's harness: its tools, middleware and instructions, and the claims manual as documents it can search |
 | `git checkout week2day3-start` | My build so far, with the brief in `docs/DURABLE.md` |
-| `git checkout week2day3-end` | Durable state: Supabase, the claim agent as a LangGraph graph that carries on after a restart, and the payout rules |
+| `git checkout week2day3-end` | Durable state: Postgres, the claim agent as a LangGraph graph that carries on after a restart, and the payout rules |
 | `git checkout week2day4-start` | My build so far, with the brief in `docs/SWARM.md` |
 | `git checkout week2day4-end` | The swarm: a dispatcher, started from the dashboard, that works the claims with up to 25 claim agents in parallel |
 | `git checkout week2day5-start` | My build so far, with the brief in `docs/IMPROVE.md` |
