@@ -103,6 +103,20 @@ def main() -> None:
     command = parser.parse_args().command
     if command == "init-test":
         os.environ["DATABASE_URL"] = test_database_url()
+        with connect() as connection:
+            existing = connection.execute(
+                "SELECT to_regnamespace('undercover') AS schema"
+            ).fetchone()
+            if existing and existing["schema"]:
+                purpose = connection.execute(
+                    "SELECT payload FROM settings WHERE key = 'purpose'"
+                ).fetchone()
+                if purpose != {"payload": {"value": "test"}}:
+                    raise RuntimeError(
+                        "Refusing to mark an existing application schema "
+                        "as disposable. "
+                        "Choose an empty test database."
+                    )
         initialize()
         with connect() as connection:
             connection.execute(

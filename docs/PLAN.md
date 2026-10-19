@@ -2,7 +2,7 @@
 
 Build a local claims platform around the existing FastAPI, LangChain and React skeleton. Use Supabase/Postgres as specified in `TECH_STACK.md`. Keep the policy decision with the agent and enforce payment rules in the backend.
 
-Approved for implementation. Database checks against Supabase remain pending until the development connection is provided; local checks use a disposable Postgres instance.
+All six phases are implemented and locally verified. Supabase initialization and hosted access checks remain pending until the development connection and project are confirmed; unchecked criteria below identify that remaining work.
 
 ## Scope and decisions for review
 
@@ -50,7 +50,7 @@ Success criteria:
 - [ ] Document cross-platform `uv run` commands for initialization and seeding, plus development/test connection variables. Confirm the selected database targets before running schema changes.
 - [ ] Run initialization and seeding on the dedicated development database; a count query returns exactly 25 queue claims, all initially waiting, with valid customer and policy relationships, three plans and three handlers.
 - [x] Seed twice; counts are unchanged. Create a synthetic decision, seed again and verify that the decision and workflow state survive.
-- [ ] A synthetic write/read test preserves nested documents and exact cents. Restart the backend and confirm saved business state remains available.
+- [x] A synthetic write/read test preserves nested documents and exact cents. Restart the backend and confirm saved business state remains available.
 - [x] Tests prove the loader opens only the named seed files and never traverses evaluation, security or manual files; no evaluation answers appear in application storage.
 - [ ] Verify the application schema is outside Data API exposure and public API roles lack access. Verify database secrets are absent from browser-facing responses and assets.
 - [x] Run `npm run check:python`; lint, formatting, types and tests pass with at least 80% Python coverage.
@@ -117,8 +117,8 @@ Success criteria:
 - [x] Stub-model tests cover approve, decline and refer, including payout arithmetic and section references on synthetic policy examples. No test makes a live model call.
 - [x] HTTP-client assertions prove the agent fetches its instructions, context and wording through the backend and sends all changes through mutation endpoints. Its tool list contains no sign-off, SQL or filesystem tool.
 - [x] A stub that tries to pay an over-limit approval receives the backend rejection; the claim stays waiting for sign-off with no payment record, and the run ends normally.
-- [ ] Starting a stub run returns `202`; another start for the same claim returns `409`. Health and activity requests remain responsive during execution.
-- [ ] Polling activity shows ordered tool steps before completion, then the saved decision. No fabricated progress or private reasoning appears.
+- [x] Starting a stub run returns `202`; another start for the same claim returns `409`. Health and activity requests remain responsive during execution.
+- [x] Polling activity shows ordered tool steps before completion, then the saved decision. No fabricated progress or private reasoning appears.
 - [x] Model/tool failures and iteration/time limits end visibly. Tests verify retry behavior before a decision and preservation of committed decisions/payments after a later failure.
 - [x] Default model, low reasoning setting and `MODEL_NAME` override remain covered by configuration tests without contacting OpenRouter.
 - [x] Run `npm run check:python`; all checks and coverage pass.
@@ -136,8 +136,8 @@ Success criteria:
 
 - [x] Vitest covers queue/detail selection, document rendering, instructions, loading/empty/error states and allowed controls for all four queue states. `npm run check:ts` passes with at least 80% dashboard coverage.
 - [x] In a browser, verify the 25-item queue, full detail for `CLM-1001`, linked history, every attached document and the exact read-only instructions text.
-- [ ] With a delayed stub run, observe in-progress state and new activity before the outcome appears. Refreshing the page preserves saved state and restores the activity view.
-- [ ] A synthetic over-limit approval shows the amount and waiting-for-sign-off status; payment is unavailable until an eligible handler signs off. Simulating payment updates both detail and queue without duplication.
+- [x] With a delayed stub run, observe in-progress state and new activity before the outcome appears. Refreshing the page preserves saved state and restores the activity view.
+- [x] A synthetic over-limit approval shows the amount and waiting-for-sign-off status; payment is unavailable until an eligible handler signs off. Simulating payment updates both detail and queue without duplication.
 - [x] Check keyboard navigation, visible focus, readable color contrast, USD formatting and layout at desktop and narrow mobile widths. Browser checks produce no application console errors.
 - [x] Use the Playwright MCP server for the interactive checks described above when available. If unavailable, use an available browser tool and retain equivalent Playwright test evidence; report any unverified visual check explicitly.
 
@@ -150,15 +150,17 @@ Document setup, environment placeholders, schema/seed commands, how to start the
 
 Success criteria:
 
-- [ ] `npm run dev` starts the backend on port 8000 and dashboard on port 5173. The documented setup seeds 25 claims without reading the answer key.
-- [ ] Playwright exercises queue → full claim → start run → live activity → approved/declined/referred decision → updated queue, using stubbed model output through the real backend and Postgres.
-- [ ] Playwright covers an over-limit approval, a rejected direct payment before sign-off, eligible handler sign-off and one successful simulated payment. Exactly `$1,000.00` is also covered without sign-off.
-- [ ] End-to-end checks cover duplicate run prevention, visible failures, refresh persistence and the read-only instructions page. Tests run without `OPENROUTER_API_KEY` and never call a model.
-- [ ] `npm run check` exits successfully: Python formatting/lint/types/tests, TypeScript formatting/lint/types/tests and Playwright, with the existing coverage thresholds intact.
-- [ ] `docs/STATUS.md` accurately describes the delivered product and commands. Tick criteria only after verification; record any missing prerequisite or unverified check explicitly.
+- [x] `npm run dev` starts the backend on port 8000 and dashboard on port 5173. The documented setup seeds 25 claims without reading the answer key.
+- [x] Playwright exercises queue → full claim → start run → live activity → approved/declined/referred decision → updated queue, using stubbed model output through the real backend and Postgres.
+- [x] Playwright covers an over-limit approval, a rejected direct payment before sign-off, eligible handler sign-off and one successful simulated payment. Exactly `$1,000.00` is also covered without sign-off.
+- [x] End-to-end checks cover duplicate run prevention, visible failures, refresh persistence and the read-only instructions page. Tests run without `OPENROUTER_API_KEY` and never call a model.
+- [x] `npm run check` exits successfully: Python formatting/lint/types/tests, TypeScript formatting/lint/types/tests and Playwright, with the existing coverage thresholds intact.
+- [x] `docs/STATUS.md` accurately describes the delivered product and commands. Tick criteria only after verification; record any missing prerequisite or unverified check explicitly.
 
 ## Implementation discipline
 
 After review and an implementation request, build the phases in order. For each phase, add tests, verify every criterion, tick the completed boxes, update `docs/STATUS.md` and commit with the pre-commit hook enabled. Never push. Run the full check suite after the final phase.
 
 Automated checks establish workflow and payment-control correctness. They do not establish handler-level model accuracy. A paid live-model smoke run requires explicit authorization; evaluation against `data/evals/` remains separate future work and requires permission to open it.
+
+Local verification uses the same Postgres schema and transactions as development. `uv run -m e2e.local` provides a disposable test database without a system service. Supabase-specific verification still requires the confirmed development project and connection; no hosted schema has been applied yet.

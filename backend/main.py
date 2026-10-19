@@ -2,10 +2,12 @@
 
 from uuid import UUID
 
-from fastapi import BackgroundTasks, FastAPI
+import psycopg
+from fastapi import BackgroundTasks, FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from backend import actions, queries, runs
-from backend.db import connect
+from backend.db import DatabaseNotConfigured, connect
 from backend.models import (
     ActivityInput,
     ActivityRecord,
@@ -25,6 +27,25 @@ from backend.models import (
 )
 
 app = FastAPI(title="UnderCover")
+
+
+@app.exception_handler(DatabaseNotConfigured)
+async def missing_database(
+    request: Request, error: DatabaseNotConfigured
+) -> JSONResponse:
+    """Return a useful setup error without exposing connection credentials."""
+    return JSONResponse(status_code=503, content={"detail": str(error)})
+
+
+@app.exception_handler(psycopg.Error)
+async def unavailable_database(request: Request, error: psycopg.Error) -> JSONResponse:
+    """Keep database failures out of public API responses."""
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": "Claims database unavailable. Check the backend connection."
+        },
+    )
 
 
 @app.get("/api/health", operation_id="health")

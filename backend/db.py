@@ -14,10 +14,17 @@ type Row = dict[str, Any]
 type Connection = psycopg.Connection[Row]
 
 
+class DatabaseNotConfigured(RuntimeError):
+    """The backend has no development database connection."""
+
+
 def connect() -> Connection:
     """Open a transaction on the configured application database."""
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        raise DatabaseNotConfigured("Set DATABASE_URL in the ignored root .env file.")
     return psycopg.Connection[Row].connect(
-        os.environ["DATABASE_URL"],
+        url,
         row_factory=dict_row,
         connect_timeout=10,
         options="-c search_path=undercover -c statement_timeout=10000",
@@ -28,12 +35,19 @@ def database_identity(url: str) -> tuple[str, str, str, str]:
     """Identify a database without comparing passwords or SSL options."""
     values = conninfo_to_dict(url)
     host = str(values.get("host", "localhost"))
-    project = str(values.get("user", "")) if "pooler.supabase.com" in host else ""
+    name = str(values.get("dbname", "postgres"))
+    if host.endswith(".pooler.supabase.com"):
+        project = str(values.get("user", "")).rsplit(".", 1)[-1]
+        return "supabase", project, name, ""
+    if host.startswith("db.") and host.endswith(".supabase.co"):
+        return "supabase", host.split(".")[1], name, ""
+    if host in {"localhost", "127.0.0.1", "::1"}:
+        host = "localhost"
     return (
         host,
         str(values.get("port", "5432")),
-        str(values.get("dbname", "postgres")),
-        project,
+        name,
+        "",
     )
 
 

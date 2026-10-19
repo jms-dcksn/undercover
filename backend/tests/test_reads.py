@@ -1,6 +1,7 @@
 import inspect
 import json
 
+import psycopg
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
@@ -69,3 +70,19 @@ def test_operation_contracts():
         if isinstance(route, APIRoute):
             assert len((inspect.getdoc(route.endpoint) or "").splitlines()) == 1
     assert not any("manual" in path or "eval" in path for path in schema["paths"])
+
+
+def test_database_configuration_errors(monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    response = client.get("/api/claims")
+    assert response.status_code == 503
+    assert "Set DATABASE_URL" in response.json()["detail"]
+    monkeypatch.setenv("DATABASE_URL", "configured")
+
+    def unavailable(*args, **kwargs):
+        raise psycopg.OperationalError("private connection details")
+
+    monkeypatch.setattr(psycopg.Connection, "connect", unavailable)
+    response = client.get("/api/claims")
+    assert response.status_code == 503
+    assert "private connection details" not in response.text

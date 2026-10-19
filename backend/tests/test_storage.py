@@ -100,6 +100,37 @@ def test_database_configuration(monkeypatch):
     assert db.test_database_url() == "postgresql://localhost/test"
 
 
+def test_supabase_connection_aliases(monkeypatch):
+    monkeypatch.setenv(
+        "DATABASE_URL", "postgresql://postgres@db.example.supabase.co/postgres"
+    )
+    monkeypatch.setenv(
+        "TEST_DATABASE_URL",
+        "postgresql://postgres.example@aws-1.pooler.supabase.com:6543/postgres",
+    )
+    with pytest.raises(RuntimeError, match="must differ"):
+        db.test_database_url()
+    assert db.database_identity("postgresql://localhost/test") == db.database_identity(
+        "postgresql://127.0.0.1:5432/test"
+    )
+
+
+def test_init_test_refuses_existing_application(database, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["manage", "init-test"])
+    with db.connect() as connection:
+        connection.execute("DELETE FROM settings WHERE key = 'purpose'")
+    monkeypatch.delenv("DATABASE_URL")
+    try:
+        with pytest.raises(RuntimeError, match="existing application"):
+            manage.main()
+    finally:
+        with db.connect() as connection:
+            connection.execute(
+                "INSERT INTO settings VALUES ('purpose', %s)",
+                (Jsonb({"value": "test"}),),
+            )
+
+
 @pytest.mark.parametrize("command", ["init", "seed", "init-test"])
 def test_manage_command(command, database, monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["manage", command])

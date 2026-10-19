@@ -33,6 +33,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pgserver==0.1.4",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "ruff>=0.16.9",
@@ -49,7 +50,7 @@ server = [
 ]
 
 [tool.ruff]
-include = ["backend/**/*.py", "agent/**/*.py"]
+include = ["backend/**/*.py", "agent/**/*.py", "e2e/**/*.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "SIM", "UP", "PL", "S", "PT", "FAST", "C90", "PLR1702"]
@@ -75,7 +76,7 @@ omit = ["*/tests/*"]
 fail_under = 80
 
 [tool.pyright]
-include = ["backend", "agent"]
+include = ["backend", "agent", "e2e"]
 venvPath = "."
 venv = ".venv"
 pythonVersion = "3.12"

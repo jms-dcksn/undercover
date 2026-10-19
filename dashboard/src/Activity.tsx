@@ -1,5 +1,11 @@
-import { timestamp } from "./format";
+import { label, timestamp } from "./format";
 import type { ActivityEvent } from "./types";
+
+const eventLabels = new Map([
+  ["tool_started", "Started"],
+  ["tool_finished", "Done"],
+  ["tool_error", "Failed"],
+]);
 
 export function Activity({
   events,
@@ -41,7 +47,12 @@ export function Activity({
               <time dateTime={event.created_at}>
                 {timestamp(event.created_at)}
               </time>
-              <span>{event.message}</span>
+              <div>
+                <small className="event-state">
+                  {eventLabels.get(event.kind) ?? label(event.kind)}
+                </small>
+                <span>{event.message}</span>
+              </div>
             </li>
           ))}
         </ol>

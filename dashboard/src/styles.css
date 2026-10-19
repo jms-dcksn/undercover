@@ -572,6 +572,13 @@ nav button.nav-active {
 .activity-error {
   color: #a22546;
 }
+.event-state {
+  display: block;
+  text-transform: capitalize;
+  color: #526b75;
+  font-size: 8px;
+  margin-bottom: 2px;
+}
 .running {
   display: flex;
   align-items: center;
