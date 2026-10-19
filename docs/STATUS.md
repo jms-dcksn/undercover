@@ -1,6 +1,8 @@
 # Status
 
-Pilot implementation is in progress. Phases 1–3 add private Postgres storage, seed loading, read APIs and transactional decisions, handler sign-off and simulated payments. The agent and dashboard are still the initial skeleton.
+Pilot implementation is in progress. Phases 1–4 add Postgres storage, seed loading, claims APIs, payment controls and a bounded LangChain claims agent. The dashboard is still the initial skeleton.
+
+The agent fetches its instructions and records through FastAPI and records real tool activity. The API runs it in the background, prevents duplicate starts and preserves committed decisions/payments on failure. The model defaults to `openai/gpt-6-luna` with low reasoning effort unless `MODEL_NAME` is set.
 
 ## Setup
 
@@ -28,5 +30,5 @@ Run `npm run check` for all checks or `npm run check:python` for Python checks.
 ## Verification
 
 - Local disposable Postgres: 25 waiting claims, three plans and three handlers; repeat seeding preserves workflow state and nested data. Application tables have RLS enabled.
-- Python checks: 32 tests passed, 99% coverage; lint, formatting and types pass. API tests cover full records, instructions, operation metadata, the exact $1,000 boundary, sign-off eligibility, invalid/partial payments, concurrent requests and preservation across repeat seeding.
+- Python checks: 45 tests passed, over 99% coverage; lint, formatting and types pass. Tests cover the API/payment controls, scripted approve/decline/refer tool use, blocked agent payment, model configuration, iteration/time limits, retry behavior and failures after committed actions. No model calls were made.
 - Supabase development initialization, API exposure and restart checks are pending connection details. No Supabase project has been modified.

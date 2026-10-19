@@ -117,3 +117,8 @@ class ActivityRecord(BaseModel):
     kind: str
     message: str
     created_at: datetime
+
+
+class ActivityInput(BaseModel):
+    kind: Literal["tool_started", "tool_finished", "tool_error"]
+    message: Text

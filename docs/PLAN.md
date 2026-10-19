@@ -114,14 +114,15 @@ On failure, record the error and return an undecided claim to waiting for manual
 
 Success criteria:
 
-- [ ] Stub-model tests cover approve, decline and refer, including payout arithmetic and section references on synthetic policy examples. No test makes a live model call.
-- [ ] HTTP-client assertions prove the agent fetches its instructions, context and wording through the backend and sends all changes through mutation endpoints. Its tool list contains no sign-off, SQL or filesystem tool.
-- [ ] A stub that tries to pay an over-limit approval receives the backend rejection; the claim stays waiting for sign-off with no payment record, and the run ends normally.
+- [x] Stub-model tests cover approve, decline and refer, including payout arithmetic and section references on synthetic policy examples. No test makes a live model call.
+- [x] HTTP-client assertions prove the agent fetches its instructions, context and wording through the backend and sends all changes through mutation endpoints. Its tool list contains no sign-off, SQL or filesystem tool.
+- [x] A stub that tries to pay an over-limit approval receives the backend rejection; the claim stays waiting for sign-off with no payment record, and the run ends normally.
 - [ ] Starting a stub run returns `202`; another start for the same claim returns `409`. Health and activity requests remain responsive during execution.
 - [ ] Polling activity shows ordered tool steps before completion, then the saved decision. No fabricated progress or private reasoning appears.
-- [ ] Model/tool failures and iteration/time limits end visibly. Tests verify retry behavior before a decision and preservation of committed decisions/payments after a later failure.
-- [ ] Default model, low reasoning setting and `MODEL_NAME` override remain covered by configuration tests without contacting OpenRouter.
-- [ ] Run `npm run check:python`; all checks and coverage pass.
+- [x] Model/tool failures and iteration/time limits end visibly. Tests verify retry behavior before a decision and preservation of committed decisions/payments after a later failure.
+- [x] Default model, low reasoning setting and `MODEL_NAME` override remain covered by configuration tests without contacting OpenRouter.
+- [x] Run `npm run check:python`; all checks and coverage pass.
+
 
 ## Phase 5: Handler dashboard
 

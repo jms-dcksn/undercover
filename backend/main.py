@@ -1,10 +1,14 @@
 """The UnderCover backend."""
 
-from fastapi import FastAPI
+from uuid import UUID
 
-from backend import actions, queries
+from fastapi import BackgroundTasks, FastAPI
+
+from backend import actions, queries, runs
 from backend.db import connect
 from backend.models import (
+    ActivityInput,
+    ActivityRecord,
     ClaimDetail,
     ClaimSummary,
     Company,
@@ -13,6 +17,8 @@ from backend.models import (
     Handler,
     PaymentInput,
     PaymentRecord,
+    RunInput,
+    RunRecord,
     SignOffInput,
     SignOffRecord,
     TextDocument,
@@ -82,3 +88,35 @@ def sign_off_claim(claim_id: str, request: SignOffInput) -> SignOffRecord:
 def pay_claim(claim_id: str, request: PaymentInput) -> PaymentRecord:
     """Simulate payment for the exact approved amount after any required sign-off."""
     return actions.pay(claim_id, request)
+
+
+@app.post("/api/claims/{claim_id}/run", operation_id="start_claim", status_code=202)
+def start_claim(
+    claim_id: str, request: RunInput, background_tasks: BackgroundTasks
+) -> RunRecord:
+    """Reserve a waiting claim and start its agent in the background."""
+    run = runs.start(claim_id, request.thread_id)
+    background_tasks.add_task(runs.execute, run)
+    return run
+
+
+@app.get("/api/claims/{claim_id}/run", operation_id="get_claim_run")
+def get_claim_run(claim_id: str) -> RunRecord:
+    """Read the most recent agent run for a claim."""
+    return runs.current(claim_id)
+
+
+@app.get("/api/claims/{claim_id}/activity", operation_id="get_claim_activity")
+def get_claim_activity(claim_id: str) -> list[ActivityRecord]:
+    """Read the claim's ordered, timestamped execution activity."""
+    return runs.events(claim_id)
+
+
+@app.post(
+    "/api/claims/{claim_id}/runs/{run_id}/activity", operation_id="record_tool_activity"
+)
+def record_tool_activity(
+    claim_id: str, run_id: UUID, request: ActivityInput
+) -> ActivityRecord:
+    """Record one observable tool event for the active claim run."""
+    return runs.record_event(claim_id, run_id, request)
