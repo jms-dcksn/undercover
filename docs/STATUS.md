@@ -47,6 +47,28 @@ Initialization creates only the private `undercover` schema and its tables. Seed
 
 Open `http://localhost:5173`; the backend runs on port 8000. Select a waiting claim and choose **Run claim**. An approval above $1,000 waits for handler sign-off; then choose **Simulate payment**. No real payment is made.
 
+## Reset and run the queue
+
+To start over, stop `npm run dev` and keep Postgres running, then run:
+
+```text
+npm run db:rebuild
+```
+
+This deletes application records, including decisions, sign-offs, payments, runs and activity, in the database selected by `DATABASE_URL`. It reloads the 25 claims and reference records from the allowed `data/` files, plus the backend's agent instructions. The reload is transactional: a loading error preserves the previous data. It does not change `.env` or the separate test database. Normal `seed` preserves existing records; `rebuild` replaces them.
+
+Restart `npm run dev`, then run this in another terminal:
+
+```text
+npm run claims:run
+```
+
+The script processes a snapshot of waiting claims sequentially through `BACKEND_URL`, printing each run's status. It uses the backend's configured model and `OPENROUTER_API_KEY`, so real runs may incur API charges. Completed, in-progress and waiting-for-sign-off claims are skipped. Recorded failures are reported while remaining claims continue; the command exits with status 1 if any failed. Connection/API errors or a 150-second polling timeout stop the batch for inspection.
+
+Over-limit payouts still require handler sign-off in the dashboard. Refresh the queue to see updates. Ctrl+C stops the script, but the current backend run may still finish. Rerunning processes only claims still waiting, including failed undecided claims.
+
+The equivalent Python commands are `uv run -m backend.manage rebuild` and `uv run -m agent.batch`. Both npm commands work on macOS and Windows.
+
 ## Tests
 
 With the development database launcher running, use `npm run check`. For a temporary test server instead, run:
@@ -64,7 +86,7 @@ First test initialization requires an empty application schema; it refuses to re
 ## Verification
 
 - Local Postgres: 25 seeded waiting claims, three plans and three handlers. Repeat seeding preserves decisions/payments, and saved state survives a backend restart. Private application tables have RLS enabled.
-- Python: 52 tests pass with 97.84% coverage; formatting, lint and types pass. Coverage includes payment boundaries/concurrency, scoped tools, time/iteration limits, failures after committed actions, local connection enforcement, database isolation and a real Postgres stop/restart test.
+- Python: 64 tests pass with 97.89% coverage; formatting, lint and types pass. Coverage includes payment boundaries/concurrency, scoped tools, time/iteration limits, failures after committed actions, local connection enforcement, database isolation, a real Postgres stop/restart test, transactional rebuild/rollback and sequential processing of 25 claims with mocked HTTP responses.
 - Dashboard: 13 tests pass with over 99% statement coverage. Playwright MCP checks confirm the 25-claim desk, full documents/history, read-only instructions, keyboard focus and desktop/mobile layouts with no horizontal overflow or application console errors.
 - Playwright: eight end-to-end scenarios cover approve/decline/refer, live work, duplicate starts, the exact $1,000 boundary, blocked agent payment, handler sign-off, simulated payment, failure display and refresh persistence. MCP also verifies the sign-off flow and saved payment after a backend restart.
 - Production dashboard build and frontend secret scan pass. No live model calls were made, and model decision accuracy has not been evaluated.

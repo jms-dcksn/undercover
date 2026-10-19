@@ -16,6 +16,8 @@ The pilot uses local Postgres. After `uv sync` and `npm install`, run `uv run -m
 
 Run `npm run check` while Postgres is running. Development data persists in the ignored `.local/postgres` directory; tests use a separate database. See [docs/STATUS.md](docs/STATUS.md) for setup and limitations.
 
+To start over, stop the app, keep Postgres running and use `npm run db:rebuild` to delete application data and reload the 25 claims. Restart the app, then use `npm run claims:run` to process waiting claims sequentially with your configured model. Real agent runs may incur API charges.
+
 ## Key links
 
 - My curriculum of courses on Udemy: [edwarddonner.com/curriculum](https://edwarddonner.com/curriculum)

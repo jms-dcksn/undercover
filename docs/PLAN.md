@@ -172,3 +172,12 @@ Local verification uses the same Postgres schema and transactions as development
 - [x] Verify stopping and restarting local Postgres retains development state and repeat seeding does not duplicate records.
 - [x] Reject remote database hosts and prevent test cleanup from targeting development through a loopback alias or different login.
 - [x] Run the full check suite and verify the dashboard reads the seeded local development database.
+
+## Local workflow scripts
+
+Provide cross-platform npm commands to reload development records and process waiting claims through the existing API, one at a time. Keep model execution and sign-off rules in the backend.
+
+- [x] `npm run db:rebuild` reloads the allowed seed data, clears prior outcomes/activity and rolls back the reset if loading fails.
+- [x] `npm run claims:run` processes waiting claims sequentially, skips other states, reports failures and stops on API errors or polling timeout.
+- [x] Tests verify both commands without live model calls; document prerequisites, destructive reset behavior, progress and exit status.
+- [x] Run `npm run check` with existing coverage thresholds.

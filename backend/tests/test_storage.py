@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 from psycopg.types.json import Jsonb
 
-from backend import db, manage
+from backend import actions, db, manage
+from backend.models import DecisionInput, PaymentInput, SignOffInput
 
 
 def test_seed_is_repeatable_and_preserves_state(database):
@@ -70,6 +71,69 @@ def test_seed_reads_only_allowed_files(database, monkeypatch):
         assert "repeat_claim_review" not in company["payload"]
 
 
+def test_rebuild_clears_outcomes_and_reloads_seed_records(claim_run):
+    actions.decide(
+        "TEST-CLAIM",
+        DecisionInput(
+            run_id=claim_run,
+            outcome="approve",
+            payout=Decimal("1250.00"),
+            explanation="The delay is covered. Eligible expenses total $1250.00.",
+            policy_section=3,
+        ),
+    )
+    actions.sign_off("TEST-CLAIM", SignOffInput(handler_id="HND-01"))
+    actions.pay("TEST-CLAIM", PaymentInput(amount=Decimal("1250.00")))
+    with db.connect() as connection:
+        connection.execute("UPDATE customers SET payload = '{}' WHERE id = 'CUS-3001'")
+        connection.execute("UPDATE settings SET payload = '{}' WHERE key = 'wording'")
+    manage.rebuild()
+    with db.connect() as connection:
+        assert connection.execute(
+            "SELECT count(*) AS count FROM claims WHERE state = 'waiting'"
+        ).fetchone() == {"count": 25}
+        assert connection.execute(
+            "SELECT count(*) AS count FROM claims"
+        ).fetchone() == {"count": 25}
+        assert connection.execute(
+            "SELECT (SELECT count(*) FROM decisions) + "
+            "(SELECT count(*) FROM sign_offs) + (SELECT count(*) FROM payments) + "
+            "(SELECT count(*) FROM runs) + (SELECT count(*) FROM activity) AS count"
+        ).fetchone() == {"count": 0}
+        assert connection.execute(
+            "SELECT payload ->> 'name' AS name FROM customers WHERE id = 'CUS-3001'"
+        ).fetchone() == {"name": "Maya Patel"}
+        wording = connection.execute(
+            "SELECT payload FROM settings WHERE key = 'wording'"
+        ).fetchone()
+        assert wording is not None
+        assert (
+            wording["payload"]["text"]
+            == (manage.DATA / "policy_wording.md").read_text()
+        )
+        assert connection.execute(
+            "SELECT payload FROM settings WHERE key = 'purpose'"
+        ).fetchone() == {"payload": {"value": "test"}}
+
+
+def test_rebuild_rolls_back_if_seed_loading_fails(database, monkeypatch, tmp_path):
+    with db.connect() as connection:
+        connection.execute("UPDATE claims SET state = 'decided' WHERE id = 'CLM-1001'")
+    monkeypatch.setattr(manage, "DATA", tmp_path)
+    with pytest.raises(FileNotFoundError):
+        manage.rebuild()
+    with db.connect() as connection:
+        assert connection.execute(
+            "SELECT state FROM claims WHERE id = 'CLM-1001'"
+        ).fetchone() == {"state": "decided"}
+        assert connection.execute(
+            "SELECT count(*) AS count FROM claims"
+        ).fetchone() == {"count": 25}
+        assert connection.execute(
+            "SELECT count(*) AS count FROM settings WHERE key = 'wording'"
+        ).fetchone() == {"count": 1}
+
+
 def test_private_schema(database):
     with db.connect() as connection:
         assert connection.execute(
@@ -127,7 +191,7 @@ def test_init_test_refuses_existing_application(database, monkeypatch):
             )
 
 
-@pytest.mark.parametrize("command", ["init", "seed", "init-test"])
+@pytest.mark.parametrize("command", ["init", "seed", "init-test", "rebuild"])
 def test_manage_command(command, database, monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["manage", command])
     monkeypatch.delenv("DATABASE_URL") if command == "init-test" else None
