@@ -105,6 +105,10 @@ def detail(claim_id: str) -> ClaimDetail:
         payment = connection.execute(
             "SELECT * FROM payments WHERE claim_id = %s", (claim_id,)
         ).fetchone()
+        run = connection.execute(
+            "SELECT * FROM runs WHERE claim_id = %s ORDER BY created_at DESC LIMIT 1",
+            (claim_id,),
+        ).fetchone()
         return ClaimDetail.model_validate(
             {
                 "summary": summary(claim),
@@ -116,6 +120,7 @@ def detail(claim_id: str) -> ClaimDetail:
                 "decision": decision,
                 "sign_off": sign_off,
                 "payment": payment,
+                "run": run,
             }
         )
 

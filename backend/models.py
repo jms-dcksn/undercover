@@ -77,6 +77,7 @@ class ClaimDetail(BaseModel):
     decision: DecisionRecord | None
     sign_off: SignOffRecord | None
     payment: PaymentRecord | None
+    run: "RunRecord | None"
 
 
 class TextDocument(BaseModel):

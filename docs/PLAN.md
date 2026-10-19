@@ -134,12 +134,13 @@ Use Instrument Sans, Instrument Serif where an accent is useful, JetBrains Mono 
 
 Success criteria:
 
-- [ ] Vitest covers queue/detail selection, document rendering, instructions, loading/empty/error states and allowed controls for all four queue states. `npm run check:ts` passes with at least 80% dashboard coverage.
-- [ ] In a browser, verify the 25-item queue, full detail for `CLM-1001`, linked history, every attached document and the exact read-only instructions text.
+- [x] Vitest covers queue/detail selection, document rendering, instructions, loading/empty/error states and allowed controls for all four queue states. `npm run check:ts` passes with at least 80% dashboard coverage.
+- [x] In a browser, verify the 25-item queue, full detail for `CLM-1001`, linked history, every attached document and the exact read-only instructions text.
 - [ ] With a delayed stub run, observe in-progress state and new activity before the outcome appears. Refreshing the page preserves saved state and restores the activity view.
 - [ ] A synthetic over-limit approval shows the amount and waiting-for-sign-off status; payment is unavailable until an eligible handler signs off. Simulating payment updates both detail and queue without duplication.
-- [ ] Check keyboard navigation, visible focus, readable color contrast, USD formatting and layout at desktop and narrow mobile widths. Browser checks produce no application console errors.
-- [ ] Use the Playwright MCP server for the interactive checks described above when available. If unavailable, use an available browser tool and retain equivalent Playwright test evidence; report any unverified visual check explicitly.
+- [x] Check keyboard navigation, visible focus, readable color contrast, USD formatting and layout at desktop and narrow mobile widths. Browser checks produce no application console errors.
+- [x] Use the Playwright MCP server for the interactive checks described above when available. If unavailable, use an available browser tool and retain equivalent Playwright test evidence; report any unverified visual check explicitly.
+
 
 ## Phase 6: End-to-end verification and handover
 
