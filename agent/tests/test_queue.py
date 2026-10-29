@@ -1,5 +1,7 @@
 import asyncio
+from datetime import UTC, datetime, timedelta
 
+import httpx
 import pytest
 from langchain_core.messages import AIMessage
 from pydantic import Field
@@ -125,3 +127,44 @@ def test_coordinator_final_text_cannot_finish_missing_work(database, monkeypatch
     saved = queue_runs.get(parent.id)
     assert saved.state == "failed"
     assert "Coordinator failed" in (saved.error or "")
+
+
+def test_recovered_coordinator_watches_existing_attempt_without_delegating():
+    requests = []
+    parent = {
+        "id": "parent",
+        "tasks": [
+            {
+                "claim_id": "claim",
+                "state": "in_progress",
+                "result": "claim: decline $0.00; payment not due.",
+            }
+        ],
+    }
+    attempt = {
+        "id": "attempt",
+        "parent_id": "parent",
+        "claim_id": "claim",
+        "state": "completed",
+        "deadline": (datetime.now(UTC) + timedelta(seconds=30)).isoformat(),
+    }
+
+    def handle(request):
+        requests.append(request.method)
+        return httpx.Response(
+            200, json=attempt if "/api/claims/" in request.url.path else parent
+        )
+
+    async def invoke():
+        async with httpx.AsyncClient(
+            base_url="http://test", transport=httpx.MockTransport(handle)
+        ) as client:
+            tool = next(
+                tool
+                for tool in queue.queue_tools(client, "parent")
+                if tool.name == "work_claim"
+            )
+            return await tool.ainvoke({"claim_id": "claim"})
+
+    assert asyncio.run(invoke()) == parent["tasks"][0]["result"]
+    assert set(requests) == {"GET"}

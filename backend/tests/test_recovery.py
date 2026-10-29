@@ -205,3 +205,33 @@ def test_orphan_pilot_attempt_is_recovered(claim_run):
     recovery.recover_all(True)
     assert runs.current("TEST-CLAIM").state == "failed"
     assert client.get("/api/claims/TEST-CLAIM").json()["summary"]["state"] == "waiting"
+
+
+def test_lost_completion_response_does_not_restart_finished_coordinator(
+    database, monkeypatch
+):
+    run = parent(1)
+    plan(run, run.snapshot[:1])
+    attempt = queue_runs.delegate(run.id, run.snapshot[0])
+    actions.decide(
+        attempt.claim_id,
+        DecisionInput(
+            run_id=attempt.id,
+            outcome="decline",
+            payout=Decimal("0"),
+            explanation="Excluded loss. No payment is due.",
+            policy_section=9,
+        ),
+    )
+    runs.finish(attempt, None)
+    calls = []
+
+    async def complete_then_lose_response(run_id):
+        calls.append(run_id)
+        queue_runs.complete(run_id)
+        raise ConnectionError("Lost completion response")
+
+    monkeypatch.setattr(coordinator, "arun", complete_then_lose_response)
+    asyncio.run(coordinator.execute(run))
+    assert calls == [run.id]
+    assert queue_runs.get(run.id).state == "completed"

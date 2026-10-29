@@ -33,6 +33,9 @@ async def invoke(parent: QueueRunRecord) -> None:
                 await asyncio.to_thread(queue_runs.complete, parent.id)
             return
         except Exception:
+            saved = await asyncio.to_thread(queue_runs.get, parent.id)
+            if saved.state == "completed":
+                return
             if attempt + 1 == COORDINATOR_ATTEMPTS:
                 raise
             logger.exception(

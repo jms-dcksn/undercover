@@ -128,9 +128,10 @@ Do not read evaluation answers, change unrelated notebook work, add another agen
 
 ## Verification evidence
 
-- `npm run check`: 102 Python tests (96.61% coverage), 20 dashboard tests (98.85% statement coverage), nine Playwright scenarios; lint, format and type gates pass.
+- `npm run check`: 104 Python tests (96.58% coverage), 20 dashboard tests (98.85% statement coverage), nine Playwright scenarios; lint, format and type gates pass.
 - Tests use a temporary marked Postgres database distinct from development. The upgrade regression starts from pilot table shapes and preserves decisions, payments, activity and null legacy manual provenance through two initializations.
 - Real backend process termination/restart releases interrupted ownership; saved-business-action and sign-off boundaries have separate recovery regressions.
 - Playwright covers the capped parent, visible plan updates, clean helpers, section reads, retry/exhaustion, premature completion rejection, refresh and final saved summary through real HTTP/Postgres. Playwright MCP confirms desktop/mobile fit, visible keyboard focus and zero application console errors.
 - `npx vite build dashboard` and a scan for the configured database/API credential values pass.
+- Recovery regressions also verify that a fresh coordinator watches an admitted attempt and does not restart a run after a lost completion response.
 - No evaluation/security files were read, no live model calls were made, and development outcomes were not rebuilt. Live acceptance stays unchecked until explicit approval to rebuild development and spend API credit on exactly five claims. Provider availability and real decision accuracy are unverified.

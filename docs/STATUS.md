@@ -89,7 +89,7 @@ For an independent temporary test database, run `uv run -m e2e.local`, follow it
 
 Verified locally with `npm run check`:
 
-- Python: 102 tests, 96.61% coverage; format, lint and types pass. Includes pilot-schema upgrades without data loss, scoped HTTP tools, caps/concurrent ownership, exact section evidence, retries/exhaustion, lost responses, payment boundaries and a real backend process restart.
+- Python: 104 tests, 96.58% coverage; format, lint and types pass. Includes pilot-schema upgrades without data loss, scoped HTTP tools, caps/concurrent ownership, exact section evidence, retries/exhaustion, lost responses, payment boundaries and a real backend process restart.
 - Dashboard: 20 tests, 98.85% statement coverage. Playwright MCP checks confirm desktop/mobile layout, no horizontal overflow at 390px, visible keyboard focus and zero application console errors.
 - Playwright: nine scenarios pass through real HTTP and test Postgres, including capped task progress, retries, two failures left for a handler, reconciliation, refresh, section evidence and existing decision/sign-off/payment flows.
 - Production dashboard build and a scan for configured database/API credentials pass.

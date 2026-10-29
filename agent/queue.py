@@ -40,6 +40,27 @@ async def wait_for_attempt(client: httpx.AsyncClient, path: str, attempt: dict) 
     raise TimeoutError("Claim attempt exceeded its deadline.")
 
 
+async def existing_attempt(
+    client: httpx.AsyncClient, path: str, claim_id: str
+) -> dict | None:
+    """Resume watching admitted work after a lost delegation response."""
+    response = await client.get(path)
+    response.raise_for_status()
+    parent = response.json()
+    active = any(
+        task["claim_id"] == claim_id and task["state"] == "in_progress"
+        for task in parent["tasks"]
+    )
+    if not active:
+        return None
+    response = await client.get(f"/api/claims/{claim_id}/run")
+    response.raise_for_status()
+    attempt = response.json()
+    if attempt["parent_id"] != parent["id"]:
+        raise RuntimeError("Claim attempt belongs to another queue run.")
+    return attempt
+
+
 def queue_tools(client: httpx.AsyncClient, run_id: str) -> list[BaseTool]:
     """Expose persisted planning and bounded delegation, never child transcripts."""
     path = f"/api/agent/runs/{run_id}"
@@ -65,6 +86,9 @@ def queue_tools(client: httpx.AsyncClient, run_id: str) -> list[BaseTool]:
     @tool
     async def work_claim(claim_id: str) -> str:
         """Delegate a planned claim to a fresh helper; return its saved short result."""
+        existing = await existing_attempt(client, path, claim_id)
+        if existing:
+            return await wait_for_attempt(client, path, existing)
         response = await client.post(path + "/delegate", json={"claim_id": claim_id})
         if response.is_error:
             return json.dumps(
