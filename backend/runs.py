@@ -2,15 +2,23 @@
 
 import asyncio
 import logging
-from datetime import UTC, datetime, timedelta
-from uuid import UUID, uuid4
+from datetime import UTC, datetime
+from uuid import UUID
 
 from fastapi import HTTPException
 
 from agent.main import arun
+from backend import queue_runs
 from backend.actions import activity, lock_claim
 from backend.db import connect
-from backend.models import ActivityInput, ActivityRecord, RunRecord
+from backend.models import (
+    ActivityInput,
+    ActivityRecord,
+    QueueRunInput,
+    RunRecord,
+    TaskInput,
+    TasksInput,
+)
 from backend.queries import required
 
 TIMEOUT_SECONDS = 120
@@ -19,26 +27,21 @@ logger = logging.getLogger(__name__)
 
 def start(claim_id: str, thread_id: str) -> RunRecord:
     """Atomically reserve one waiting claim for an agent run."""
-    with connect() as connection:
-        claim = lock_claim(connection, claim_id)
-        if claim["state"] != "waiting":
-            raise HTTPException(409, "Only a waiting claim can be started.")
-        row = connection.execute(
-            "INSERT INTO runs (id, claim_id, thread_id, state, deadline) "
-            "VALUES (%s, %s, %s, 'running', %s) RETURNING *",
-            (
-                uuid4(),
-                claim_id,
-                thread_id,
-                datetime.now(UTC) + timedelta(seconds=TIMEOUT_SECONDS),
-            ),
-        ).fetchone()
-        run = RunRecord.model_validate(row)
-        connection.execute(
-            "UPDATE claims SET state = 'in_progress' WHERE id = %s", (claim_id,)
-        )
-        activity(connection, claim_id, run.id, "started", "Agent run started.")
-        return run
+    parent = queue_runs.start(
+        QueueRunInput(thread_id=thread_id, claim_limit=None, claim_id=claim_id),
+        legacy=True,
+    )
+    queue_runs.write_tasks(
+        parent.id,
+        TasksInput(
+            tasks=[
+                TaskInput(
+                    claim_id=claim_id, description="Work named claim", state="todo"
+                )
+            ]
+        ),
+    )
+    return queue_runs.delegate(parent.id, claim_id)
 
 
 def current(claim_id: str) -> RunRecord:
@@ -93,20 +96,48 @@ def finish(run: RunRecord, error: str | None) -> None:
     """Finish a run, preserving any decision and payment already committed."""
     with connect() as connection:
         claim = lock_claim(connection, run.claim_id)
+        stored = required(
+            connection.execute(
+                "SELECT * FROM runs WHERE id = %s FOR UPDATE", (run.id,)
+            ).fetchone(),
+            "Run",
+        )
+        if stored["state"] != "running":
+            return
         if error is None and claim["state"] == "in_progress":
             error = "The agent finished without recording a decision. Retry the claim."
         state = "failed" if error else "completed"
         connection.execute(
-            "UPDATE runs SET state = %s, finished_at = now() WHERE id = %s",
-            (state, run.id),
+            "UPDATE runs SET state = %s, error = %s, finished_at = now() WHERE id = %s",
+            (state, error, run.id),
         )
         if error and claim["state"] == "in_progress":
             connection.execute(
-                "UPDATE claims SET state = 'waiting' WHERE id = %s", (run.claim_id,)
+                "UPDATE claims SET failures = failures + 1, last_error = %s, "
+                "state = CASE WHEN failures + 1 >= 2 THEN 'needs_handler' "
+                "ELSE 'waiting' END "
+                "WHERE id = %s",
+                (
+                    error,
+                    run.claim_id,
+                ),
             )
         activity(
             connection, run.claim_id, run.id, state, error or "Agent run completed."
         )
+        if run.parent_id:
+            task_state = queue_runs.terminal_state(connection, run.claim_id) or "todo"
+            result = error or f"{run.claim_id}: {task_state}"
+            connection.execute(
+                "UPDATE tasks SET state = %s, result = %s "
+                "WHERE parent_id = %s AND claim_id = %s",
+                (task_state, result, run.parent_id, run.claim_id),
+            )
+            connection.execute(
+                "UPDATE queue_runs SET state = %s, error = %s, summary = %s, "
+                "finished_at = now() WHERE id = %s AND legacy",
+                (state, error, result, run.parent_id),
+            )
 
 
 async def execute(run: RunRecord) -> None:

@@ -95,3 +95,7 @@ First test initialization requires an empty application schema; it refuses to re
 ## Pilot limits
 
 Run one backend process. Business records persist in Postgres, but agent execution is not durable: stopping the backend during a run can leave a claim in progress and requires inspection before manual recovery. Completed decisions are immutable, and failed runs preserve committed decisions/payments. There is no sign-in, real payment or customer messaging.
+
+## Harness implementation
+
+Phase 1 adds repeatable schema upgrades, stored parent runs/tasks, global run ownership, transactional distinct-claim admission and two-failure accounting. Python verification: 69 tests, 96.83% coverage, formatting/lint/types pass against a temporary marked test database. Queue model orchestration and the dashboard are pending. No development rebuild or live model run has been performed.

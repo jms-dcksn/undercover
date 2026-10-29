@@ -85,3 +85,42 @@ BEGIN
         EXECUTE format('ALTER TABLE undercover.%I ENABLE ROW LEVEL SECURITY', app_table.tablename);
     END LOOP;
 END $$;
+
+-- Additive, repeatable upgrade from the pilot schema.
+ALTER TABLE undercover.claims DROP CONSTRAINT IF EXISTS claims_state_check;
+ALTER TABLE undercover.claims ADD CONSTRAINT claims_state_check CHECK
+    (state IN ('waiting', 'in_progress', 'waiting_for_sign_off', 'decided', 'needs_handler'));
+ALTER TABLE undercover.claims ADD COLUMN IF NOT EXISTS failures INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE undercover.claims ADD COLUMN IF NOT EXISTS last_error TEXT;
+CREATE TABLE IF NOT EXISTS undercover.queue_runs (
+    id UUID PRIMARY KEY,
+    thread_id TEXT NOT NULL,
+    mode TEXT NOT NULL CHECK (mode IN ('queue', 'named')),
+    claim_id TEXT REFERENCES undercover.claims,
+    claim_limit INTEGER CHECK (claim_limit > 0),
+    snapshot JSONB NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('running', 'completed', 'failed')),
+    legacy BOOLEAN NOT NULL DEFAULT false,
+    summary TEXT,
+    error TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deadline TIMESTAMPTZ NOT NULL,
+    finished_at TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS one_active_queue_run
+    ON undercover.queue_runs ((true)) WHERE state = 'running';
+ALTER TABLE undercover.runs ADD COLUMN IF NOT EXISTS parent_id UUID
+    REFERENCES undercover.queue_runs;
+ALTER TABLE undercover.runs ADD COLUMN IF NOT EXISTS error TEXT;
+CREATE TABLE IF NOT EXISTS undercover.tasks (
+    parent_id UUID NOT NULL REFERENCES undercover.queue_runs,
+    claim_id TEXT NOT NULL REFERENCES undercover.claims,
+    position INTEGER NOT NULL,
+    description TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('todo', 'in_progress', 'done', 'left_for_handler')),
+    admitted BOOLEAN NOT NULL DEFAULT false,
+    result TEXT,
+    PRIMARY KEY (parent_id, claim_id)
+);
+ALTER TABLE undercover.queue_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE undercover.tasks ENABLE ROW LEVEL SECURITY;

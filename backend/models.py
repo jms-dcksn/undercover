@@ -7,7 +7,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
-type QueueState = Literal["waiting", "in_progress", "waiting_for_sign_off", "decided"]
+type QueueState = Literal[
+    "waiting", "in_progress", "waiting_for_sign_off", "decided", "needs_handler"
+]
 type Outcome = Literal["approve", "decline", "refer"]
 type Money = Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=2)]
 type Text = Annotated[str, Field(min_length=1, max_length=4000)]
@@ -103,6 +105,8 @@ class RunInput(BaseModel):
 
 
 class RunRecord(RunInput):
+    parent_id: UUID | None = None
+    error: str | None = None
     id: UUID
     claim_id: str
     state: Literal["running", "completed", "failed"]
@@ -123,3 +127,62 @@ class ActivityRecord(BaseModel):
 class ActivityInput(BaseModel):
     kind: Literal["tool_started", "tool_finished", "tool_error"]
     message: Text
+
+
+type TaskState = Literal["todo", "in_progress", "done", "left_for_handler"]
+
+
+class QueueRunInput(BaseModel):
+    thread_id: Text
+    claim_limit: Annotated[int, Field(gt=0, strict=True)] | None
+    claim_id: Text | None
+
+    @model_validator(mode="after")
+    def validate_scope(self) -> "QueueRunInput":
+        """Keep named and capped scopes mutually exclusive."""
+        if self.claim_id is not None and self.claim_limit is not None:
+            raise ValueError("Choose a claim or a limit, not both.")
+        return self
+
+
+class TaskInput(BaseModel):
+    claim_id: Text
+    description: Text
+    state: TaskState
+
+
+class TaskRecord(TaskInput):
+    parent_id: UUID
+    position: int
+    admitted: bool
+    result: str | None
+
+
+class TasksInput(BaseModel):
+    tasks: Annotated[list[TaskInput], Field(max_length=1000)]
+
+
+class DelegateInput(BaseModel):
+    claim_id: Text
+
+
+class QueueRunRecord(QueueRunInput):
+    id: UUID
+    mode: Literal["queue", "named"]
+    snapshot: list[str]
+    state: Literal["running", "completed", "failed"]
+    summary: str | None
+    error: str | None
+    created_at: datetime
+    deadline: datetime
+    finished_at: datetime | None
+    tasks: list[TaskRecord]
+
+
+class Reconciliation(BaseModel):
+    ready: bool
+    missing: list[str]
+    retry: list[str]
+    active: list[str]
+    slots_remaining: int
+    outside_cap: int

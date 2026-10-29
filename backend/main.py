@@ -6,7 +6,7 @@ import psycopg
 from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from backend import actions, queries, runs
+from backend import actions, queries, queue_runs, runs
 from backend.db import DatabaseNotConfigured, connect
 from backend.models import (
     ActivityInput,
@@ -16,13 +16,18 @@ from backend.models import (
     Company,
     DecisionInput,
     DecisionRecord,
+    DelegateInput,
     Handler,
     PaymentInput,
     PaymentRecord,
+    QueueRunInput,
+    QueueRunRecord,
+    Reconciliation,
     RunInput,
     RunRecord,
     SignOffInput,
     SignOffRecord,
+    TasksInput,
     TextDocument,
 )
 
@@ -141,3 +146,51 @@ def record_tool_activity(
 ) -> ActivityRecord:
     """Record one observable tool event for the active claim run."""
     return runs.record_event(claim_id, run_id, request)
+
+
+@app.post("/api/agent/runs", operation_id="start_queue_run", status_code=202)
+def start_queue_run(request: QueueRunInput) -> QueueRunRecord:
+    """Start a stored queue run over a snapshot of eligible claims."""
+    return queue_runs.start(request)
+
+
+@app.get("/api/agent/runs/latest", operation_id="latest_queue_run")
+def latest_queue_run() -> QueueRunRecord | None:
+    """Read the current or most recent stored queue run."""
+    return queue_runs.latest()
+
+
+@app.get("/api/agent/runs/{run_id}", operation_id="get_queue_run")
+def get_queue_run(run_id: UUID) -> QueueRunRecord:
+    """Read a stored queue run and its ordered tasks."""
+    return queue_runs.get(run_id)
+
+
+@app.put("/api/agent/runs/{run_id}/tasks", operation_id="write_queue_tasks")
+def write_queue_tasks(run_id: UUID, request: TasksInput) -> QueueRunRecord:
+    """Validate and store the queue agent's ordered to-do list."""
+    return queue_runs.write_tasks(run_id, request)
+
+
+@app.post(
+    "/api/agent/runs/{run_id}/delegate", operation_id="delegate_claim", status_code=202
+)
+def delegate_claim(
+    run_id: UUID, request: DelegateInput, background_tasks: BackgroundTasks
+) -> RunRecord:
+    """Reserve a cap slot and start a fresh bounded claim attempt."""
+    attempt = queue_runs.delegate(run_id, request.claim_id)
+    background_tasks.add_task(runs.execute, attempt)
+    return attempt
+
+
+@app.get("/api/agent/runs/{run_id}/reconciliation", operation_id="reconcile_queue_run")
+def reconcile_queue_run(run_id: UUID) -> Reconciliation:
+    """Check for missing work, active attempts and required retries."""
+    return queue_runs.reconcile(run_id)
+
+
+@app.post("/api/agent/runs/{run_id}/complete", operation_id="complete_queue_run")
+def complete_queue_run(run_id: UUID) -> QueueRunRecord:
+    """Reconcile authoritative outcomes and save the final run summary."""
+    return queue_runs.complete(run_id)
