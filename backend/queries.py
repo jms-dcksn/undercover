@@ -45,6 +45,8 @@ def summary(claim: Row) -> ClaimSummary:
     return ClaimSummary.model_validate(
         {
             "claim_id": claim["id"],
+            "failures": claim["failures"],
+            "last_error": claim["last_error"],
             "customer_name": claim["customer_name"],
             "plan": claim["plan"],
             "claim_type": claim["payload"]["claim_type"],

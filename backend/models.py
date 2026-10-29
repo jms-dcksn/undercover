@@ -16,6 +16,8 @@ type Text = Annotated[str, Field(min_length=1, max_length=4000)]
 
 
 class ClaimSummary(BaseModel):
+    failures: int
+    last_error: str | None
     claim_id: str
     customer_name: str
     plan: str

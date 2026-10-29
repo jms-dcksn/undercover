@@ -99,11 +99,11 @@ Update `agent/batch.py` to submit one parent run, poll its stored status and pri
 
 Success criteria:
 
-- [ ] Vitest covers cap validation, active-run controls, all task states, needs-handler filtering, both instruction sets, section-read display and loading/error/empty states. `npm run check:ts` passes with at least 80% coverage.
-- [ ] In the browser, observe a delayed stub run's list being created, updated and completed. Refresh between claims and verify polling resumes, with no duplicate start or lost summary.
-- [ ] The claim page shows the exact sections read and their source/version; another claim's evidence does not appear. Named-claim, sign-off and simulated-payment flows still work.
-- [ ] CLI tests cover uncapped, `--limit 5` and `--claim` starts, bad flags, progress, terminal summaries, failed-run exit status, connection errors and interruption, using mocked HTTP only.
-- [ ] Use Playwright MCP when available, otherwise an available browser tool plus Playwright evidence, to check desktop/mobile layout, keyboard focus, USD formatting and no application console errors. Record any unavailable visual check explicitly.
+- [x] Vitest covers cap validation, active-run controls, all task states, needs-handler filtering, both instruction sets, section-read display and loading/error/empty states. `npm run check:ts` passes with at least 80% coverage.
+- [x] In the browser, observe a delayed stub run's list being created, updated and completed. Refresh between claims and verify polling resumes, with no duplicate start or lost summary.
+- [x] The claim page shows the exact sections read and their source/version; another claim's evidence does not appear. Named-claim, sign-off and simulated-payment flows still work.
+- [x] CLI tests cover uncapped, `--limit 5` and `--claim` starts, bad flags, progress, terminal summaries, failed-run exit status, connection errors and interruption, using mocked HTTP only.
+- [x] Use Playwright MCP when available, otherwise an available browser tool plus Playwright evidence, to check desktop/mobile layout, keyboard focus, USD formatting and no application console errors. Record any unavailable visual check explicitly.
 
 ## Phase 6: Verification and handover
 

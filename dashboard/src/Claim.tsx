@@ -9,6 +9,7 @@ import type {
   ClaimDetail,
   Handler,
   TextDocument,
+  SectionRead,
 } from "./types";
 
 function whileRunning(data: ClaimDetail) {
@@ -19,22 +20,37 @@ export function Claim({
   id,
   handlers,
   onChange,
+  queueRunning = false,
 }: Readonly<{
   id: string;
   handlers: Handler[];
   onChange: () => Promise<void>;
+  queueRunning?: boolean;
 }>) {
-  const resource = useResource<ClaimDetail>(`/api/claims/${id}`, whileRunning);
+  const pollClaim = useCallback(
+    (data: ClaimDetail) => queueRunning || whileRunning(data),
+    [queueRunning],
+  );
+  const resource = useResource<ClaimDetail>(`/api/claims/${id}`, pollClaim);
   const running = resource.data?.run?.state === "running";
   const pollActivity = useCallback(() => running, [running]);
   const activity = useResource<ActivityEvent[]>(
     `/api/claims/${id}/activity`,
     pollActivity,
   );
+  const sections = useResource<SectionRead[]>(
+    `/api/claims/${id}/sections`,
+    pollActivity,
+  );
   const wording = useResource<TextDocument>("/api/policy-wording");
 
   async function refresh() {
-    await Promise.all([resource.reload(), activity.reload(), onChange()]);
+    await Promise.all([
+      resource.reload(),
+      activity.reload(),
+      sections.reload(),
+      onChange(),
+    ]);
   }
 
   if (!resource.data)
@@ -121,7 +137,13 @@ export function Claim({
           </section>
         </div>
         <div className="claim-actions">
-          <Decision detail={detail} handlers={handlers} onChange={refresh} />
+          <Decision
+            detail={detail}
+            handlers={handlers}
+            onChange={refresh}
+            runActive={queueRunning}
+          />
+          <ReadSections reads={sections.data ?? []} error={sections.error} />
           <Activity events={activity.data ?? []} running={running} />
           {activity.error ? (
             <p className="error" role="alert">
@@ -131,5 +153,37 @@ export function Claim({
         </div>
       </div>
     </article>
+  );
+}
+
+function ReadSections({
+  reads,
+  error,
+}: Readonly<{ reads: SectionRead[]; error: string | null }>) {
+  return (
+    <section className="panel content-panel">
+      <h2>Sections read</h2>
+      {error ? (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {reads.length ? (
+        reads.map((section) => (
+          <details className="document" key={section.id}>
+            <summary>
+              {section.document === "manual"
+                ? "Claims manual"
+                : "Policy wording"}{" "}
+              {section.version} · Section {section.section}
+            </summary>
+            <p className="muted identifier">Attempt {section.run_id}</p>
+            <pre className="document-text">{section.text}</pre>
+          </details>
+        ))
+      ) : (
+        <p className="muted">No sections read yet.</p>
+      )}
+    </section>
   );
 }

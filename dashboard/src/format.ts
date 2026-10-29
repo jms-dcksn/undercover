@@ -11,6 +11,7 @@ export const states: Record<QueueState, string> = {
   in_progress: "In progress",
   waiting_for_sign_off: "Waiting for sign-off",
   decided: "Decided",
+  needs_handler: "Needs handler",
 };
 
 const currency = new Intl.NumberFormat("en-US", {

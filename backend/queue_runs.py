@@ -313,7 +313,7 @@ def outcome_line(connection: Connection, claim_id: str) -> str:
             payment = "blocked for sign-off"
         if row["outcome"] != "approve" or row["payout"] == 0:
             payment = "not due"
-        return f"{claim_id}: {row['outcome']} ${row['payout']:.2f}; payment {payment}."
+        return f"{claim_id}: {row['outcome']} ${row['payout']:,.2f}; payment {payment}."
     return (
         f"{claim_id}: technical failure {row['failures']}/2; "
         f"{row['state']}; {row['last_error']}"

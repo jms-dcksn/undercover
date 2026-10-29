@@ -1,6 +1,6 @@
 import json
 import sys
-from uuid import UUID
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -8,127 +8,155 @@ import pytest
 from agent import batch
 
 
-@pytest.mark.parametrize("failed_claim", [None, "CLM-1002"])
-def test_processes_25_claims_sequentially_and_skips_other_states(
-    failed_claim, monkeypatch, capsys
-):
-    claims = [
-        {"claim_id": f"CLM-{number}", "state": "waiting"}
-        for number in range(1001, 1026)
-    ]
-    claims.extend(
-        {"claim_id": state, "state": state}
-        for state in ("decided", "waiting_for_sign_off", "in_progress")
+def stored(state="completed", tasks=None):
+    return {
+        "id": "parent",
+        "state": state,
+        "tasks": tasks or [],
+        "deadline": (datetime.now(UTC) + timedelta(seconds=6000)).isoformat(),
+        "summary": "Saved queue summary" if state == "completed" else None,
+        "error": "Coordinator failed" if state == "failed" else None,
+    }
+
+
+@pytest.mark.parametrize(
+    ("limit", "claim_id"), [(None, None), (5, None), (None, "CLM-1001")]
+)
+def test_submit_one_parent_and_poll(limit, claim_id, monkeypatch, capsys):
+    calls = []
+    states = iter(
+        [
+            stored(
+                "running", [{"claim_id": "CLM-1001", "state": "todo", "result": None}]
+            ),
+            stored(),
+        ]
     )
-    active = None
-    polled = False
-    started = []
-    threads = []
 
     def handle(request):
-        nonlocal active, polled
-        if request.url.path == "/api/claims":
-            return httpx.Response(200, json=claims)
-        claim_id = request.url.path.split("/")[3]
+        calls.append(request)
+        if request.url.path.endswith("/latest"):
+            return httpx.Response(200, content="null")
         if request.method == "POST":
-            assert active is None
-            active, polled = claim_id, False
-            started.append(claim_id)
-            threads.append(UUID(json.loads(request.content)["thread_id"]))
-            return httpx.Response(202, json={"state": "running"})
-        assert active == claim_id
-        if not polled:
-            polled = True
-            return httpx.Response(200, json={"state": "running"})
-        active = None
-        state = "failed" if claim_id == failed_claim else "completed"
-        return httpx.Response(200, json={"state": state})
+            return httpx.Response(202, json=stored("running"))
+        return httpx.Response(200, json=next(states))
 
     monkeypatch.setattr(batch.time, "sleep", lambda _: None)
     with httpx.Client(
-        transport=httpx.MockTransport(handle), base_url="http://test"
+        base_url="http://test", transport=httpx.MockTransport(handle)
     ) as client:
-        assert batch.run(client) == int(failed_claim is not None)
-    assert started == [claim["claim_id"] for claim in claims[:25]]
-    assert len(set(threads)) == 25
-    assert active is None
-    output = capsys.readouterr().out
-    assert "Processing 25 waiting claims; 3 skipped." in output
-    expected = "24 completed, 1 failed" if failed_claim else "25 completed, 0 failed"
-    assert expected in output
+        assert batch.run(client, limit, claim_id) == 0
+    submitted = [request for request in calls if request.method == "POST"]
+    assert len(submitted) == 1
+    body = json.loads(submitted[0].content)
+    assert body["claim_limit"] == limit
+    assert body["claim_id"] == claim_id
+    assert "Saved queue summary" in capsys.readouterr().out
 
 
-def test_empty_queue_does_not_start_runs(capsys):
+def test_attach_and_failed_exit(capsys):
+    calls = []
+
     def handle(request):
-        assert request.url.path == "/api/claims"
-        return httpx.Response(200, json=[])
+        calls.append(request.method)
+        return httpx.Response(
+            200,
+            json=stored(
+                "running" if request.url.path.endswith("/latest") else "failed"
+            ),
+        )
 
     with httpx.Client(
-        transport=httpx.MockTransport(handle), base_url="http://test"
+        base_url="http://test", transport=httpx.MockTransport(handle)
+    ) as client:
+        assert batch.run(client) == 1
+    assert calls == ["GET", "GET"]
+    assert "no new work started" in capsys.readouterr().out
+
+
+def test_racing_start_attaches_to_existing_run():
+    latest = iter([None, stored("running")])
+
+    def handle(request):
+        if request.method == "POST":
+            return httpx.Response(409, json={"detail": "active"})
+        data = next(latest) if request.url.path.endswith("/latest") else stored()
+        return httpx.Response(200, content=json.dumps(data))
+
+    with httpx.Client(
+        base_url="http://test", transport=httpx.MockTransport(handle)
     ) as client:
         assert batch.run(client) == 0
-    assert "Finished: 0 completed, 0 failed." in capsys.readouterr().out
 
 
-def test_polling_timeout_stops_the_batch(monkeypatch):
-    clock = iter([0, 0, batch.WAIT_SECONDS + 1])
-    monkeypatch.setattr(batch.time, "monotonic", lambda: next(clock))
-    monkeypatch.setattr(batch.time, "sleep", lambda _: None)
-    transport = httpx.MockTransport(
-        lambda request: httpx.Response(200, json={"state": "running"})
-    )
+def test_timeout_and_failed_task():
+    expired = stored("running")
+    expired["deadline"] = (datetime.now(UTC) - timedelta(seconds=10)).isoformat()
     with (
-        httpx.Client(transport=transport, base_url="http://test") as client,
-        pytest.raises(TimeoutError, match="inspect the claim"),
+        httpx.Client(
+            base_url="http://test",
+            transport=httpx.MockTransport(lambda _: httpx.Response(200, json=expired)),
+        ) as client,
+        pytest.raises(TimeoutError, match="Parent deadline"),
     ):
-        batch.wait_for_run(client, "/api/claims/CLM-1001/run")
-
-
-@pytest.mark.parametrize("state", ["completed", "failed"])
-def test_command_configuration_and_exit_status(state, monkeypatch, capsys):
-    def handle(request):
-        assert request.url.host == "configured-backend"
-        if request.url.path == "/api/claims":
-            return httpx.Response(
-                200, json=[{"claim_id": "CLM-1001", "state": "waiting"}]
-            )
-        return httpx.Response(200, json={"state": state})
-
-    client_factory = httpx.Client
-    monkeypatch.setattr(
-        batch.httpx,
-        "Client",
-        lambda **kwargs: client_factory(
-            transport=httpx.MockTransport(handle), **kwargs
-        ),
+        batch.wait_for_run(client, "/parent")
+    failed = stored(
+        tasks=[
+            {
+                "claim_id": "c",
+                "state": "left_for_handler",
+                "result": "technical failure 2/2",
+            }
+        ]
     )
-    monkeypatch.setenv("BACKEND_URL", "http://configured-backend")
-    monkeypatch.setattr(sys, "argv", ["batch"])
+    with httpx.Client(
+        base_url="http://test",
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                json=stored("running")
+                if request.url.path.endswith("/latest")
+                else failed,
+            )
+        ),
+    ) as client:
+        assert batch.run(client) == 1
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--limit", "0"],
+        ["--limit", "-1"],
+        ["--limit", "bad"],
+        ["--limit", "5", "--claim", "x"],
+        ["--unknown"],
+    ],
+)
+def test_bad_flags(arguments, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["batch", *arguments])
     with pytest.raises(SystemExit) as error:
         batch.main()
-    assert error.value.code == (1 if state == "failed" else 0)
-    assert f"CLM-1001: {state}" in capsys.readouterr().out
+    assert error.value.code == 2
 
 
-@pytest.mark.parametrize("status", [409, 503])
-def test_http_error_stops_with_a_useful_message(status, monkeypatch):
-    def fail(client):
-        response = httpx.Response(status, request=httpx.Request("POST", "http://test"))
-        response.raise_for_status()
+@pytest.mark.parametrize(
+    "failure", [httpx.ConnectError("offline"), KeyboardInterrupt(), None]
+)
+def test_main_exit_and_interruption(failure, monkeypatch, capsys):
+    def run(client, limit, claim_id):
+        if failure:
+            raise failure
+        return 0
 
-    monkeypatch.setattr(batch, "run", fail)
-    monkeypatch.setattr(sys, "argv", ["batch"])
-    with pytest.raises(SystemExit, match=f"Batch stopped:.*{status}"):
-        batch.main()
-
-
-def test_interrupt_explains_that_the_backend_run_continues(monkeypatch, capsys):
-    def interrupt(client):
-        raise KeyboardInterrupt
-
-    monkeypatch.setattr(batch, "run", interrupt)
-    monkeypatch.setattr(sys, "argv", ["batch"])
+    monkeypatch.setattr(sys, "argv", ["batch", "--limit", "5"])
+    monkeypatch.setattr(batch, "run", run)
     with pytest.raises(SystemExit) as error:
         batch.main()
-    assert error.value.code == 130
-    assert "current agent run may still finish" in capsys.readouterr().out
+    if isinstance(failure, KeyboardInterrupt):
+        assert error.value.code == 130
+        assert "Backend work may continue" in capsys.readouterr().out
+    elif failure:
+        assert "Queue watch stopped" in str(error.value)
+    else:
+        assert error.value.code == 0

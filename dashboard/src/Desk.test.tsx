@@ -15,6 +15,9 @@ const responses = new Map<string, unknown>();
 
 beforeEach(() => {
   responses.clear();
+  responses.set("/api/agent/runs/latest", null);
+  responses.set("/api/claims/TEST-01/sections", []);
+  responses.set("/api/claims/TEST-02/sections", []);
   responses.set("/api/claims", [first, second]);
   responses.set("/api/handlers", handlers);
   responses.set("/api/claims/TEST-01", makeDetail());
@@ -26,11 +29,17 @@ beforeEach(() => {
   });
   responses.set("/api/agent/instructions", {
     text: "Read all evidence. Use the policy wording.",
+    claim: "Read all evidence. Use the policy wording.",
+    queue: "Plan the waiting queue.",
   });
   vi.stubGlobal(
     "fetch",
     vi.fn((path: string) =>
-      Promise.resolve(new Response(JSON.stringify(responses.get(path) ?? {}))),
+      Promise.resolve(
+        new Response(
+          JSON.stringify(responses.has(path) ? responses.get(path) : {}),
+        ),
+      ),
     ),
   );
 });
@@ -145,15 +154,16 @@ it("shows empty and failed queue states with refresh", async () => {
     vi.fn().mockRejectedValue(new Error("Backend unavailable")),
   );
   render(<App />);
-  expect(await screen.findAllByRole("alert")).toHaveLength(2);
+  expect(await screen.findAllByRole("alert")).toHaveLength(3);
   cleanup();
   vi.stubGlobal(
     "fetch",
-    vi.fn((path: string) =>
-      Promise.resolve(
-        new Response(JSON.stringify(path === "/api/claims" ? [] : handlers)),
-      ),
-    ),
+    vi.fn((path: string) => {
+      let data: unknown = handlers;
+      if (path === "/api/claims") data = [];
+      if (path === "/api/agent/runs/latest") data = null;
+      return Promise.resolve(new Response(JSON.stringify(data)));
+    }),
   );
   render(<App />);
   expect(await screen.findByText("No claims in the queue")).toBeDefined();
@@ -192,4 +202,94 @@ it("shows a claim without supporting documents", () => {
     />,
   );
   expect(screen.getByText("No supporting documents attached.")).toBeDefined();
+});
+
+it("shows technical handler work and filters it separately from referrals", async () => {
+  const failed = {
+    ...first,
+    state: "needs_handler" as const,
+    failures: 2,
+    last_error: "Provider failed twice.",
+  };
+  responses.set("/api/claims", [failed, second]);
+  responses.set("/api/claims/TEST-01", makeDetail(failed));
+  render(<App />);
+  await screen.findByRole("article", { name: "Claim TEST-01" });
+  expect(screen.getByText(/Technical failure after 2 attempts/)).toBeDefined();
+  expect(screen.getByRole("button", { name: "Run claim" })).toHaveProperty(
+    "disabled",
+    true,
+  );
+  fireEvent.change(screen.getByLabelText("Filter by status"), {
+    target: { value: "needs_handler" },
+  });
+  const queue = screen.getByRole("complementary", { name: "Claims queue" });
+  expect(within(queue).queryByText("Sam Test")).toBeNull();
+});
+
+it("shows exact section read evidence with version and attempt", async () => {
+  responses.set("/api/claims/TEST-01/sections", [
+    {
+      id: 1,
+      run_id: "attempt-one",
+      document: "manual",
+      version: "2026.2",
+      section: 7,
+      heading: "Interpretation notes",
+      text: "Exact manual text including a table.",
+    },
+    {
+      id: 2,
+      run_id: "attempt-one",
+      document: "wording",
+      version: "2026.1",
+      section: 5,
+      heading: "Baggage",
+      text: "Exact wording text.",
+    },
+  ]);
+  render(<App />);
+  expect(
+    await screen.findByText("Claims manual 2026.2 · Section 7"),
+  ).toBeDefined();
+  expect(
+    screen.getByText("Exact manual text including a table."),
+  ).toBeDefined();
+  expect(screen.getAllByText("Attempt attempt-one")).toHaveLength(2);
+});
+
+it("polls parent work between claims and retains its terminal summary on refresh", async () => {
+  const active = {
+    id: "parent",
+    state: "running",
+    mode: "queue",
+    claim_limit: 5,
+    snapshot: ["TEST-01"],
+    tasks: [],
+    error: null,
+    summary: null,
+  };
+  responses.set("/api/agent/runs/latest", active);
+  render(<App />);
+  expect(
+    await screen.findByRole("button", { name: "Queue running" }),
+  ).toHaveProperty("disabled", true);
+  const finished = {
+    ...active,
+    state: "completed",
+    summary: "One saved decision; four outside cap.",
+  };
+  responses.set("/api/agent/runs/latest", finished);
+  expect(
+    await screen.findByText(
+      "One saved decision; four outside cap.",
+      {},
+      { timeout: 4000 },
+    ),
+  ).toBeDefined();
+  cleanup();
+  render(<App />);
+  expect(
+    await screen.findByText("One saved decision; four outside cap."),
+  ).toBeDefined();
 });

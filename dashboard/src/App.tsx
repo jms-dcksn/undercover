@@ -1,9 +1,15 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useResource } from "./api";
 import { Claim } from "./Claim";
 import { states } from "./format";
+import { RunPanel } from "./RunPanel";
 import { Queue } from "./Queue";
-import type { ClaimSummary, Handler, TextDocument } from "./types";
+import type {
+  ClaimSummary,
+  Handler,
+  Instructions as InstructionSets,
+  QueueRun,
+} from "./types";
 import "./styles.css";
 
 function whileWorking(claims: ClaimSummary[]) {
@@ -11,29 +17,53 @@ function whileWorking(claims: ClaimSummary[]) {
 }
 
 function Instructions() {
-  const resource = useResource<TextDocument>("/api/agent/instructions");
+  const resource = useResource<InstructionSets>("/api/agent/instructions");
+  if (resource.error)
+    return (
+      <p className="error" role="alert">
+        {resource.error}
+      </p>
+    );
+  const content = resource.data ? (
+    <>
+      <h2>Running the queue</h2>
+      <pre className="document-text">{resource.data.queue}</pre>
+      <h2>Working a claim</h2>
+      <pre className="document-text">{resource.data.claim}</pre>
+    </>
+  ) : (
+    <p>Loading instructions…</p>
+  );
   return (
     <section className="panel instructions">
       <span className="eyebrow">READ ONLY</span>
       <h1>Agent instructions</h1>
       <p className="muted">
-        The exact instructions the agent receives for each claim.
+        The exact instructions supplied to the queue and claim agents.
       </p>
-      {resource.error ? (
-        <p className="error" role="alert">
-          {resource.error}
-        </p>
-      ) : (
-        <pre className="document-text">
-          {resource.data?.text ?? "Loading instructions…"}
-        </pre>
-      )}
+      {content}
     </section>
   );
 }
 
 export function App() {
-  const claims = useResource<ClaimSummary[]>("/api/claims", whileWorking);
+  const parent = useResource<QueueRun | null>(
+    "/api/agent/runs/latest",
+    (run) => run?.state === "running",
+  );
+  const active = parent.data?.state === "running";
+  const pollQueue = useCallback(
+    (data: ClaimSummary[]) => active || whileWorking(data),
+    [active],
+  );
+  const claims = useResource<ClaimSummary[]>("/api/claims", pollQueue);
+  const reloadClaims = claims.reload;
+  useEffect(() => {
+    void reloadClaims();
+  }, [parent.data, reloadClaims]);
+  async function refresh() {
+    await Promise.all([claims.reload(), parent.reload()]);
+  }
   const handlers = useResource<Handler[]>("/api/handlers");
   const [selected, setSelected] = useState<string | null>(null);
   const [page, setPage] = useState("claims");
@@ -90,12 +120,17 @@ export function App() {
                 type="button"
                 className="secondary"
                 onClick={() => {
-                  void claims.reload();
+                  void refresh();
                 }}
               >
                 Refresh queue
               </button>
             </div>
+            <RunPanel
+              run={parent.data}
+              error={parent.error}
+              onChange={refresh}
+            />
             <section className="metrics" aria-label="Queue overview">
               {Object.entries(states).map(([state, text]) => (
                 <div className={`metric ${state}`} key={state}>
@@ -129,7 +164,8 @@ export function App() {
                     key={selectedId}
                     id={selectedId}
                     handlers={handlers.data ?? []}
-                    onChange={claims.reload}
+                    onChange={refresh}
+                    queueRunning={active}
                   />
                 ) : (
                   <section className="panel content-panel">

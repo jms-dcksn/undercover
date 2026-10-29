@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { errorMessage, post } from "./api";
 import { money, outcomes } from "./format";
-import type { ClaimDetail, Handler } from "./types";
+import type { ClaimDetail, ClaimSummary, Handler } from "./types";
 
 interface Props {
   detail: ClaimDetail;
+  runActive?: boolean;
   handlers: Handler[];
   onChange: () => Promise<void>;
 }
@@ -55,7 +56,12 @@ function SignOffForm({
   );
 }
 
-export function Decision({ detail, handlers, onChange }: Readonly<Props>) {
+export function Decision({
+  detail,
+  handlers,
+  onChange,
+  runActive = false,
+}: Readonly<Props>) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { summary, decision, sign_off: signOff, payment } = detail;
@@ -134,22 +140,15 @@ export function Decision({ detail, handlers, onChange }: Readonly<Props>) {
           ) : null}
         </>
       ) : (
-        <>
-          <p className="muted">
-            The agent will review the evidence against the policy wording and
-            save its decision here.
-          </p>
-          <button
-            type="button"
-            disabled={busy || summary.state !== "waiting"}
-            onClick={() => {
-              void mutate("run", { thread_id: crypto.randomUUID() });
-            }}
-          >
-            {summary.state === "in_progress" ? "Agent working" : "Run claim"}
-          </button>
-        </>
+        <StartClaim
+          summary={summary}
+          disabled={busy || runActive}
+          onRun={() => {
+            void mutate("run", { thread_id: crypto.randomUUID() });
+          }}
+        />
       )}
+
       {busy ? (
         <p role="status" className="muted">
           Saving…
@@ -161,5 +160,34 @@ export function Decision({ detail, handlers, onChange }: Readonly<Props>) {
         </p>
       ) : null}
     </section>
+  );
+}
+
+function StartClaim({
+  summary,
+  disabled,
+  onRun,
+}: Readonly<{ summary: ClaimSummary; disabled: boolean; onRun: () => void }>) {
+  return (
+    <>
+      <p className="muted">
+        The agent will review the evidence against the policy wording and claims
+        manual and save its decision here.
+      </p>
+      {summary.state === "needs_handler" ? (
+        <p className="error">
+          Technical failure after {summary.failures} attempts.{" "}
+          {summary.last_error} A handler must review this claim; no insurance
+          decision was recorded.
+        </p>
+      ) : null}
+      <button
+        type="button"
+        disabled={disabled || summary.state !== "waiting"}
+        onClick={onRun}
+      >
+        {summary.state === "in_progress" ? "Agent working" : "Run claim"}
+      </button>
+    </>
   );
 }

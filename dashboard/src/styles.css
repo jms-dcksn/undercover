@@ -748,3 +748,77 @@ nav button.nav-active {
     padding: 25px;
   }
 }
+
+.run-panel {
+  margin-bottom: 24px;
+}
+.run-heading,
+.run-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.run-heading {
+  justify-content: space-between;
+}
+.run-controls input[type="number"] {
+  width: 90px;
+}
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.checkbox-label input {
+  width: auto;
+}
+.task-list {
+  padding-left: 24px;
+}
+.task-list li {
+  padding: 10px 0;
+  overflow-wrap: anywhere;
+}
+.task-list .status,
+.task-list .identifier {
+  margin-right: 10px;
+}
+.task-result {
+  margin: 8px 0 0;
+}
+.run-summary {
+  font-weight: 600;
+}
+.status.needs_handler,
+.status.task-left_for_handler {
+  color: #9f2442;
+  background: #ffe5ec;
+}
+.status.task-done {
+  color: #075341;
+  background: #d9f9ee;
+}
+.status.task-in_progress {
+  color: #073b4c;
+  background: #ffe9bd;
+}
+.status.task-todo {
+  color: #073b4c;
+  background: #e8eff1;
+}
+.metric.needs_handler {
+  background: #ffe5ec;
+}
+@media (max-width: 600px) {
+  .run-controls {
+    align-items: flex-start;
+    width: 100%;
+  }
+  .run-controls button {
+    width: 100%;
+  }
+}
+.run-progress {
+  margin-top: 16px;
+}

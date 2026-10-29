@@ -10,6 +10,8 @@ export const first: ClaimSummary = {
   state: "waiting",
   outcome: null,
   payout: null,
+  failures: 0,
+  last_error: null,
   payment_status: "not_due",
 };
 export const second: ClaimSummary = {

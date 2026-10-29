@@ -1,5 +1,9 @@
 export type QueueState =
-  "waiting" | "in_progress" | "waiting_for_sign_off" | "decided";
+  | "waiting"
+  | "in_progress"
+  | "waiting_for_sign_off"
+  | "decided"
+  | "needs_handler";
 export type Outcome = "approve" | "decline" | "refer";
 export type JsonValue =
   string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -15,6 +19,8 @@ export interface ClaimSummary {
   state: QueueState;
   outcome: Outcome | null;
   payout: string | null;
+  failures: number;
+  last_error: string | null;
   payment_status: "not_due" | "pending" | "blocked" | "paid";
 }
 
@@ -57,5 +63,42 @@ export interface ActivityEvent {
 }
 
 export interface TextDocument {
+  text: string;
+}
+
+export type TaskState = "todo" | "in_progress" | "done" | "left_for_handler";
+
+export interface QueueTask {
+  claim_id: string;
+  description: string;
+  state: TaskState;
+  admitted: boolean;
+  position: number;
+  result: string | null;
+}
+
+export interface QueueRun {
+  id: string;
+  state: "running" | "completed" | "failed";
+  mode: "queue" | "named";
+  claim_limit: number | null;
+  snapshot: string[];
+  tasks: QueueTask[];
+  summary: string | null;
+  error: string | null;
+}
+
+export interface Instructions extends TextDocument {
+  queue: string;
+  claim: string;
+}
+
+export interface SectionRead {
+  id: number;
+  run_id: string;
+  document: "wording" | "manual";
+  version: string;
+  section: number;
+  heading: string;
   text: string;
 }
