@@ -294,3 +294,27 @@ def complete(run_id: UUID) -> QueueRunRecord:
             (summary, run_id),
         ).fetchone()
         return record(connection, required(row, "Queue run"))
+
+
+def outcome_line(connection: Connection, claim_id: str) -> str:
+    """Summarize saved state without copying evidence or model explanations."""
+    row = required(
+        connection.execute(
+            "SELECT c.state, c.failures, c.last_error, d.outcome, d.payout, p.amount "
+            "FROM claims c LEFT JOIN decisions d ON c.id = d.claim_id "
+            "LEFT JOIN payments p ON p.claim_id = c.id WHERE c.id = %s",
+            (claim_id,),
+        ).fetchone(),
+        "Claim",
+    )
+    if row["outcome"]:
+        payment = "paid" if row["amount"] else "pending"
+        if row["state"] == "waiting_for_sign_off":
+            payment = "blocked for sign-off"
+        if row["outcome"] != "approve" or row["payout"] == 0:
+            payment = "not due"
+        return f"{claim_id}: {row['outcome']} ${row['payout']:.2f}; payment {payment}."
+    return (
+        f"{claim_id}: technical failure {row['failures']}/2; "
+        f"{row['state']}; {row['last_error']}"
+    )

@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from backend import actions, db, manage, queue_runs, runs
+from backend import actions, coordinator, db, manage, queue_runs, runs
 from backend.main import app
 from backend.models import (
     DecisionInput,
@@ -52,7 +52,11 @@ def decide(attempt, outcome: Outcome = "decline", payout="0"):
     runs.finish(attempt, None)
 
 
-def test_scope_contract_and_global_ownership(database):
+def test_scope_contract_and_global_ownership(database, monkeypatch):
+    async def no_model(parent):
+        return None
+
+    monkeypatch.setattr(coordinator, "execute", no_model)
     assert queue_runs.latest() is None
     assert client.get(f"/api/agent/runs/{uuid4()}").status_code == 404
     for limit in (0, -1, 1.5, True):

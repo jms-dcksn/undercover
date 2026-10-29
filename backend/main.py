@@ -6,7 +6,7 @@ import psycopg
 from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from backend import actions, documents, queries, queue_runs, runs
+from backend import actions, coordinator, documents, queries, queue_runs, runs
 from backend.db import DatabaseNotConfigured, connect
 from backend.models import (
     ActivityInput,
@@ -160,9 +160,13 @@ def record_tool_activity(
 
 
 @app.post("/api/agent/runs", operation_id="start_queue_run", status_code=202)
-def start_queue_run(request: QueueRunInput) -> QueueRunRecord:
+def start_queue_run(
+    request: QueueRunInput, background_tasks: BackgroundTasks
+) -> QueueRunRecord:
     """Start a stored queue run over a snapshot of eligible claims."""
-    return queue_runs.start(request)
+    parent = queue_runs.start(request)
+    background_tasks.add_task(coordinator.execute, parent)
+    return parent
 
 
 @app.get("/api/agent/runs/latest", operation_id="latest_queue_run")
@@ -229,3 +233,10 @@ def read_section(claim_id: str, run_id: UUID, request: SectionInput) -> SectionR
 def get_section_reads(claim_id: str) -> list[SectionRead]:
     """Read the versioned sections retrieved for this claim's attempts."""
     return documents.reads(claim_id)
+
+
+@app.get("/api/agent/runs/{run_id}/claims", operation_id="get_run_claim_summaries")
+def get_run_claim_summaries(run_id: UUID) -> list[ClaimSummary]:
+    """Read only the summaries in this run's immutable snapshot."""
+    parent = queue_runs.get(run_id)
+    return [claim for claim in queries.queue() if claim.claim_id in parent.snapshot]

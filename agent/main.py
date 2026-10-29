@@ -15,7 +15,7 @@ from agent.tools import claim_tools
 load_dotenv()
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_MODEL = "openai/gpt-6-luna"
+DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
 MAX_STEPS = 40
 
 
@@ -27,7 +27,7 @@ def backend() -> httpx.AsyncClient:
 
 
 def model() -> ChatOpenAI:
-    """Return the model named in MODEL_NAME, or GPT-6 Luna by default."""
+    """Return the model named in MODEL_NAME, or DeepSeek V4.1 Flash by default."""
     name = os.getenv("MODEL_NAME")
     return ChatOpenAI(
         model=name or DEFAULT_MODEL,

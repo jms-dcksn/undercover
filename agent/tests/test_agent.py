@@ -143,7 +143,7 @@ def test_model_name(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.delenv("MODEL_NAME", raising=False)
     default = main.model()
-    assert default.model_name == "openai/gpt-6-luna"
+    assert default.model_name == "deepseek/deepseek-v4.1-flash"
     assert default.reasoning_effort == "low"
     monkeypatch.setenv("MODEL_NAME", "openrouter/free")
     override = main.model()

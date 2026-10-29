@@ -127,7 +127,7 @@ def finish(run: RunRecord, error: str | None) -> None:
         )
         if run.parent_id:
             task_state = queue_runs.terminal_state(connection, run.claim_id) or "todo"
-            result = error or f"{run.claim_id}: {task_state}"
+            result = queue_runs.outcome_line(connection, run.claim_id)
             connection.execute(
                 "UPDATE tasks SET state = %s, result = %s "
                 "WHERE parent_id = %s AND claim_id = %s",

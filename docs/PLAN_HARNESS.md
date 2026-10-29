@@ -66,11 +66,11 @@ Change the shared default to `deepseek/deepseek-v4.1-flash` with low reasoning e
 
 Success criteria:
 
-- [ ] A scripted queue model chooses a deliberately different order from claim-ID order, creates/updates stored tasks, delegates the snapshot and produces a short saved summary. No Python loop preselects its work order.
-- [ ] A five-claim cap admits exactly five distinct synthetic claims; retries consume no extra slot and remaining claims stay waiting. Test a cap larger than the queue, an empty queue and one named claim.
-- [ ] Captured worker inputs prove that each claim and retry gets fresh history with no previous customer's evidence. Captured parent inputs contain only summaries and one-line results.
-- [ ] The helper's result matches saved decisions/payments even if its final model text is inaccurate. Claim activity still records each actual tool call and section read on the correct attempt.
-- [ ] Configuration tests verify the exact default model, low reasoning effort and overrides without contacting OpenRouter; `npm run check:python` passes.
+- [x] A scripted queue model chooses a deliberately different order from claim-ID order, creates/updates stored tasks, delegates the snapshot and produces a short saved summary. No Python loop preselects its work order.
+- [x] A five-claim cap admits exactly five distinct synthetic claims; retries consume no extra slot and remaining claims stay waiting. Test a cap larger than the queue, an empty queue and one named claim.
+- [x] Captured worker inputs prove that each claim and retry gets fresh history with no previous customer's evidence. Captured parent inputs contain only summaries and one-line results.
+- [x] The helper's result matches saved decisions/payments even if its final model text is inaccurate. Claim activity still records each actual tool call and section read on the correct attempt.
+- [x] Configuration tests verify the exact default model, low reasoning effort and overrides without contacting OpenRouter; `npm run check:python` passes.
 
 ## Phase 4: Retries, reconciliation and interruption cleanup
 
