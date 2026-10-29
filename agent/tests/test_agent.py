@@ -2,15 +2,16 @@ import asyncio
 
 import httpx
 import pytest
-from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
 from langchain_core.messages import AIMessage
 
 from agent import main
 from agent.tools import claim_tools
 from backend import db
+from backend.main import app
 
 
-class StubModel(GenericFakeChatModel):
+class StubModel(FakeMessagesListChatModel):
     """A chat model that gives scripted replies in place of a real model."""
 
     def bind_tools(self, tools, **kwargs):
@@ -43,7 +44,7 @@ def scripted_model(outcome, amount, pay):
     if pay:
         replies.append(reply("request_payment", {"amount": amount}, "5"))
     replies.append(AIMessage(content="Decision recorded."))
-    return StubModel(messages=iter(replies))
+    return StubModel(responses=[*replies])
 
 
 @pytest.mark.parametrize(
@@ -156,3 +157,30 @@ def test_backend_url(monkeypatch):
     client = main.backend()
     assert str(client.base_url) == "http://test-server"
     asyncio.run(client.aclose())
+
+
+@pytest.mark.parametrize("lost_action", ["decision", "payment"])
+def test_lost_write_response_reads_saved_action(claim_run, monkeypatch, lost_action):
+    class LostResponse(httpx.AsyncBaseTransport):
+        lost = False
+
+        async def handle_async_request(self, request):
+            response = await httpx.ASGITransport(app=app).handle_async_request(request)
+            if request.url.path.endswith("/" + lost_action) and not self.lost:
+                self.lost = True
+                raise httpx.ReadError("Response lost after commit", request=request)
+            return response
+
+    monkeypatch.setattr(
+        main,
+        "backend",
+        lambda: httpx.AsyncClient(transport=LostResponse(), base_url="http://test"),
+    )
+    main.run("TEST-CLAIM", "test-thread", scripted_model("approve", "420.00", True))
+    with db.connect() as connection:
+        assert connection.execute("SELECT count(*) AS n FROM decisions").fetchone() == {
+            "n": 1
+        }
+        assert connection.execute("SELECT count(*) AS n FROM payments").fetchone() == {
+            "n": 1
+        }

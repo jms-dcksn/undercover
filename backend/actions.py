@@ -154,33 +154,58 @@ def pay(claim_id: str, request: PaymentInput) -> PaymentRecord:
     """Simulate the full approved payment after enforcing handler sign-off."""
     with connect() as connection:
         lock_claim(connection, claim_id)
-        decision = connection.execute(
-            "SELECT * FROM decisions WHERE claim_id = %s", (claim_id,)
-        ).fetchone()
-        if not decision or decision["outcome"] != "approve" or decision["payout"] <= 0:
-            raise HTTPException(409, "A positive approved payout is required.")
-        if request.amount != decision["payout"]:
-            raise HTTPException(409, "Payment must equal the full approved payout.")
-        signed = connection.execute(
-            "SELECT * FROM sign_offs WHERE claim_id = %s", (claim_id,)
-        ).fetchone()
-        if decision["payout"] > approval_limit(connection) and not signed:
-            raise HTTPException(409, "A handler must sign off before payment.")
+        return pay_in(connection, claim_id, request)
+
+
+def pay_in(
+    connection: Connection, claim_id: str, request: PaymentInput
+) -> PaymentRecord:
+    """Validate and pay while the caller holds the claim lock."""
+    decision = connection.execute(
+        "SELECT * FROM decisions WHERE claim_id = %s", (claim_id,)
+    ).fetchone()
+    if not decision or decision["outcome"] != "approve" or decision["payout"] <= 0:
+        raise HTTPException(409, "A positive approved payout is required.")
+    if request.amount != decision["payout"]:
+        raise HTTPException(409, "Payment must equal the full approved payout.")
+    signed = connection.execute(
+        "SELECT * FROM sign_offs WHERE claim_id = %s", (claim_id,)
+    ).fetchone()
+    if decision["payout"] > approval_limit(connection) and not signed:
+        raise HTTPException(409, "A handler must sign off before payment.")
+    row = connection.execute(
+        "INSERT INTO payments (claim_id, amount) VALUES (%s, %s) "
+        "ON CONFLICT DO NOTHING RETURNING *",
+        (claim_id, request.amount),
+    ).fetchone()
+    if row:
+        activity(
+            connection,
+            claim_id,
+            decision["run_id"],
+            "payment",
+            f"Simulated payment recorded: ${request.amount:,.2f}.",
+        )
+    else:
         row = connection.execute(
-            "INSERT INTO payments (claim_id, amount) VALUES (%s, %s) "
-            "ON CONFLICT DO NOTHING RETURNING *",
-            (claim_id, request.amount),
+            "SELECT * FROM payments WHERE claim_id = %s", (claim_id,)
         ).fetchone()
-        if row:
-            activity(
-                connection,
-                claim_id,
-                decision["run_id"],
-                "payment",
-                f"Simulated payment recorded: ${request.amount:,.2f}.",
-            )
-        else:
-            row = connection.execute(
-                "SELECT * FROM payments WHERE claim_id = %s", (claim_id,)
-            ).fetchone()
-        return PaymentRecord.model_validate(row)
+    return PaymentRecord.model_validate(row)
+
+
+def active_run(connection: Connection, claim_id: str, run_id: UUID) -> Row:
+    """Reject writes by expired, completed or replaced claim attempts."""
+    run = connection.execute(
+        "SELECT * FROM runs WHERE id = %s AND claim_id = %s", (run_id, claim_id)
+    ).fetchone()
+    if not run or run["state"] != "running" or run["deadline"] <= datetime.now(UTC):
+        raise HTTPException(409, "This claim attempt is no longer active.")
+    return run
+
+
+def pay_scoped(claim_id: str, run_id: UUID, request: PaymentInput) -> PaymentRecord:
+    """Accept agent payment only while its own claim attempt is active."""
+    with connect() as connection:
+        lock_claim(connection, claim_id)
+        active_run(connection, claim_id, run_id)
+        return pay_in(connection, claim_id, request)

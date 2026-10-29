@@ -82,12 +82,12 @@ Catch failures at the delegation boundary, finalize the attempt transactionally 
 
 Success criteria:
 
-- [ ] A transient provider failure recovers within its attempt; permanent errors stop bounded retries. Fake clocks or short test budgets verify backoff, timeouts and step limits without slow sleeps.
-- [ ] One claim fails, returns to waiting, succeeds on retry and does not stop later claims. Another fails twice, becomes needs-handler and is excluded from a subsequent run. Verify the failure count across parent runs and startup cleanup.
-- [ ] A scripted parent omits an eligible claim or tries to finish before a retry; reconciliation identifies the missing work and successful completion is blocked until it is handled within the cap.
-- [ ] Lost responses after decision/payment commits, late worker writes and repeated cleanup produce at most one decision and one payment. Test payment recovery after a saved approval and the unchanged `$1,000.00`/`$1,000.01` sign-off boundary.
-- [ ] Stop/restart a test backend during a run. Its parent is marked interrupted/failed, no claim remains owned in progress, saved decisions/payments survive and a new run can pick up eligible work. Coordinator failure and total-budget exhaustion have equivalent cleanup tests.
-- [ ] `npm run check:python` passes without live model calls.
+- [x] A transient provider failure recovers within its attempt; permanent errors stop bounded retries. Fake clocks or short test budgets verify backoff, timeouts and step limits without slow sleeps.
+- [x] One claim fails, returns to waiting, succeeds on retry and does not stop later claims. Another fails twice, becomes needs-handler and is excluded from a subsequent run. Verify the failure count across parent runs and startup cleanup.
+- [x] A scripted parent omits an eligible claim or tries to finish before a retry; reconciliation identifies the missing work and successful completion is blocked until it is handled within the cap.
+- [x] Lost responses after decision/payment commits, late worker writes and repeated cleanup produce at most one decision and one payment. Test payment recovery after a saved approval and the unchanged `$1,000.00`/`$1,000.01` sign-off boundary.
+- [x] Stop/restart a test backend during a run. Its parent is marked interrupted/failed, no claim remains owned in progress, saved decisions/payments survive and a new run can pick up eligible work. Coordinator failure and total-budget exhaustion have equivalent cleanup tests.
+- [x] `npm run check:python` passes without live model calls.
 
 ## Phase 5: Dashboard and queue command
 

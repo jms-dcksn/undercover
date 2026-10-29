@@ -38,7 +38,7 @@ def parent_model(ids):
             AIMessage(content="Untrusted final model text"),
         ]
     )
-    return CapturingModel(messages=iter(messages))
+    return CapturingModel(responses=[*messages])
 
 
 @pytest.mark.parametrize("limit", [5, 100, None])
@@ -60,7 +60,7 @@ def test_agent_selects_order_and_isolates_fresh_workers(
 
     async def child(claim_id, thread_id):
         scripted = scripted_model("decline", "0.00", False)
-        model = CapturingModel(messages=scripted.messages)
+        model = CapturingModel(responses=scripted.responses)
         workers.append((claim_id, model))
         return await main.arun(claim_id, thread_id, model)
 

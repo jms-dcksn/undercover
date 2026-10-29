@@ -233,7 +233,9 @@ def delegate(run_id: UUID, claim_id: str) -> RunRecord:
 def reconcile_in(connection: Connection, parent: Row) -> Reconciliation:
     """Compare the immutable scope and cap with actual attempts and outcomes."""
     tasks = connection.execute(
-        "SELECT t.*, c.state AS claim_state FROM tasks t "
+        "SELECT t.*, c.state AS claim_state, EXISTS(SELECT 1 FROM runs r "
+        "WHERE r.parent_id = t.parent_id AND r.claim_id = t.claim_id "
+        "AND r.state = 'running') AS active_attempt FROM tasks t "
         "JOIN claims c ON c.id = t.claim_id "
         "WHERE parent_id = %s AND admitted ORDER BY position",
         (parent["id"],),
@@ -242,9 +244,7 @@ def reconcile_in(connection: Connection, parent: Row) -> Reconciliation:
     slots = max(0, (parent["claim_limit"] or len(parent["snapshot"])) - len(admitted))
     missing = [claim_id for claim_id in parent["snapshot"] if claim_id not in admitted]
     retry = [task["claim_id"] for task in tasks if task["claim_state"] == "waiting"]
-    active = [
-        task["claim_id"] for task in tasks if task["claim_state"] == "in_progress"
-    ]
+    active = [task["claim_id"] for task in tasks if task["active_attempt"]]
     return Reconciliation(
         ready=not active and not retry and (not missing or slots == 0),
         missing=missing if slots else [],

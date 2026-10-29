@@ -37,9 +37,21 @@ class ClaimHTTP:
             )
         except httpx.RequestError:
             await self.event("tool_error", f"{name}: backend connection failed.")
-            raise
+            saved = await self.recover(method, path)
+            if saved is None:
+                raise
+            response = httpx.Response(200, json=saved)
         await self.event("tool_finished", name)
         return response.text
+
+    async def recover(self, method: str, path: str) -> dict | None:
+        """Read saved business actions after an ambiguous write response."""
+        key = "decision" if path.endswith("/decision") else "payment"
+        if method != "POST" or not path.endswith(("/decision", "/payment")):
+            return None
+        response = await self.client.get(self.event_path.split("/runs/")[0])
+        response.raise_for_status()
+        return response.json()[key]
 
 
 def claim_tools(
@@ -112,7 +124,7 @@ def claim_tools(
         return await call(
             "Request simulated payment",
             "POST",
-            f"{claim_path}/payment",
+            f"{claim_path}/runs/{run_id}/payment",
             {"amount": amount},
         )
 

@@ -11,6 +11,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool, tool
 
 from agent import main
+from agent.retry import middleware
 
 POLL_SECONDS = 0.2
 STEPS_PER_CLAIM = 24
@@ -98,6 +99,7 @@ async def arun(run_id: UUID, llm: BaseChatModel | None = None) -> str:
         )
         agent = create_agent(
             llm or main.model(),
+            middleware=[middleware()],
             tools=queue_tools(client, str(run_id)),
             system_prompt=instructions.json()["queue"],
         )

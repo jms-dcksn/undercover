@@ -9,11 +9,12 @@ from fastapi import HTTPException
 
 from agent.main import arun
 from backend import queue_runs
-from backend.actions import activity, lock_claim
-from backend.db import connect
+from backend.actions import activity, approval_limit, lock_claim, pay_in
+from backend.db import Connection, connect
 from backend.models import (
     ActivityInput,
     ActivityRecord,
+    PaymentInput,
     QueueRunInput,
     RunRecord,
     TaskInput,
@@ -93,58 +94,73 @@ def record_event(claim_id: str, run_id: UUID, request: ActivityInput) -> Activit
 
 
 def finish(run: RunRecord, error: str | None) -> None:
-    """Finish a run, preserving any decision and payment already committed."""
+    """Finalize an attempt once, preserving committed business actions."""
     with connect() as connection:
-        claim = lock_claim(connection, run.claim_id)
-        stored = required(
-            connection.execute(
-                "SELECT * FROM runs WHERE id = %s FOR UPDATE", (run.id,)
-            ).fetchone(),
-            "Run",
-        )
-        if stored["state"] != "running":
-            return
-        if error is None and claim["state"] == "in_progress":
-            error = "The agent finished without recording a decision. Retry the claim."
-        state = "failed" if error else "completed"
-        connection.execute(
-            "UPDATE runs SET state = %s, error = %s, finished_at = now() WHERE id = %s",
-            (state, error, run.id),
-        )
-        if error and claim["state"] == "in_progress":
-            connection.execute(
-                "UPDATE claims SET failures = failures + 1, last_error = %s, "
-                "state = CASE WHEN failures + 1 >= 2 THEN 'needs_handler' "
-                "ELSE 'waiting' END "
-                "WHERE id = %s",
-                (
-                    error,
-                    run.claim_id,
-                ),
-            )
-        activity(
-            connection, run.claim_id, run.id, state, error or "Agent run completed."
-        )
         if run.parent_id:
-            task_state = queue_runs.terminal_state(connection, run.claim_id) or "todo"
-            result = queue_runs.outcome_line(connection, run.claim_id)
-            connection.execute(
-                "UPDATE tasks SET state = %s, result = %s "
-                "WHERE parent_id = %s AND claim_id = %s",
-                (task_state, result, run.parent_id, run.claim_id),
-            )
-            connection.execute(
-                "UPDATE queue_runs SET state = %s, error = %s, summary = %s, "
-                "finished_at = now() WHERE id = %s AND legacy",
-                (state, error, result, run.parent_id),
-            )
+            queue_runs.read_row(connection, run.parent_id)
+        finish_in(connection, run, error)
+
+
+def finish_in(connection: Connection, run: RunRecord, error: str | None) -> None:
+    """Apply failure accounting and task reconciliation in one transaction."""
+    claim = lock_claim(connection, run.claim_id)
+    stored = required(
+        connection.execute(
+            "SELECT * FROM runs WHERE id = %s FOR UPDATE", (run.id,)
+        ).fetchone(),
+        "Run",
+    )
+    if stored["state"] != "running":
+        return
+    if error is None and claim["state"] == "in_progress":
+        error = "The agent finished without recording a decision. Retry the claim."
+    recover_payment(connection, run.claim_id)
+    state = "failed" if error else "completed"
+    connection.execute(
+        "UPDATE runs SET state = %s, error = %s, finished_at = now() WHERE id = %s",
+        (state, error, run.id),
+    )
+    if error and claim["state"] == "in_progress":
+        connection.execute(
+            "UPDATE claims SET failures = failures + 1, last_error = %s, "
+            "state = CASE WHEN failures + 1 >= 2 THEN 'needs_handler' "
+            "ELSE 'waiting' END WHERE id = %s",
+            (error, run.claim_id),
+        )
+    activity(connection, run.claim_id, run.id, state, error or "Agent run completed.")
+    if run.parent_id:
+        task_state = queue_runs.terminal_state(connection, run.claim_id) or "todo"
+        result = queue_runs.outcome_line(connection, run.claim_id)
+        connection.execute(
+            "UPDATE tasks SET state = %s, result = %s "
+            "WHERE parent_id = %s AND claim_id = %s",
+            (task_state, result, run.parent_id, run.claim_id),
+        )
+
+
+def recover_payment(connection: Connection, claim_id: str) -> None:
+    """Recover a permitted unpaid approval without another model decision."""
+    decision = connection.execute(
+        "SELECT * FROM decisions WHERE claim_id = %s", (claim_id,)
+    ).fetchone()
+    if (
+        decision
+        and decision["outcome"] == "approve"
+        and 0 < decision["payout"] <= approval_limit(connection)
+    ):
+        pay_in(connection, claim_id, PaymentInput(amount=decision["payout"]))
 
 
 async def execute(run: RunRecord) -> None:
     """Execute a bounded run without blocking the API event loop."""
     error = None
     try:
-        async with asyncio.timeout(TIMEOUT_SECONDS):
+        async with asyncio.timeout(
+            min(
+                TIMEOUT_SECONDS,
+                max(0, (run.deadline - datetime.now(UTC)).total_seconds()),
+            )
+        ):
             await arun(run.claim_id, run.thread_id)
     except Exception as exception:
         logger.exception("Agent run %s failed", run.id)

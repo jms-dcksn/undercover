@@ -2,14 +2,14 @@
 
 import asyncio
 
-from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
 from langchain_core.messages import AIMessage
 
 from agent.main import arun
 from e2e.fixtures import SCENARIOS
 
 
-class ScriptedModel(GenericFakeChatModel):
+class ScriptedModel(FakeMessagesListChatModel):
     """Use deterministic messages while exercising LangChain's real tool loop."""
 
     def bind_tools(self, tools, **kwargs):
@@ -68,4 +68,4 @@ async def run(claim_id: str, thread_id: str) -> str:
     if outcome == "approve":
         replies.append(call("request_payment", {"amount": payout}, "5"))
     replies.append(AIMessage(content="Decision recorded."))
-    return await arun(claim_id, thread_id, ScriptedModel(messages=iter(replies)))
+    return await arun(claim_id, thread_id, ScriptedModel(responses=[*replies]))

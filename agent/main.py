@@ -10,6 +10,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
+from agent.retry import middleware
 from agent.tools import claim_tools
 
 load_dotenv()
@@ -35,7 +36,7 @@ def model() -> ChatOpenAI:
         api_key=SecretStr(os.environ["OPENROUTER_API_KEY"]),
         reasoning_effort=None if name else "low",
         timeout=45,
-        max_retries=1,
+        max_retries=0,
     )
 
 
@@ -56,6 +57,7 @@ async def arun(claim_id: str, thread_id: str, llm: BaseChatModel | None = None) 
             raise ValueError("Claim thread does not match an active run.")
         agent = create_agent(
             llm or model(),
+            middleware=[middleware()],
             tools=claim_tools(client, claim_id, current["id"]),
             system_prompt=instructions.json()["text"],
         )

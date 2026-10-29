@@ -156,7 +156,7 @@ def test_manual_scenarios_via_http_tools(scenario, claim_run, http_backend):
         AIMessage(content="Saved"),
     ]
     asyncio.run(
-        main.arun("TEST-CLAIM", "test-thread", StubModel(messages=iter(messages)))
+        main.arun("TEST-CLAIM", "test-thread", StubModel(responses=[*messages]))
     )
     detail = client.get("/api/claims/TEST-CLAIM").json()
     assert detail["decision"]["manual_version"] == "2026.2"

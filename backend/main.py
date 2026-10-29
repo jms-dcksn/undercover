@@ -1,12 +1,14 @@
 """The UnderCover backend."""
 
+import asyncio
+from contextlib import asynccontextmanager, suppress
 from uuid import UUID
 
 import psycopg
 from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from backend import actions, coordinator, documents, queries, queue_runs, runs
+from backend import actions, coordinator, documents, queries, queue_runs, recovery, runs
 from backend.db import DatabaseNotConfigured, connect
 from backend.models import (
     ActivityInput,
@@ -37,7 +39,21 @@ from backend.models import (
     TextDocument,
 )
 
-app = FastAPI(title="UnderCover")
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Recover interrupted ownership and monitor deadlines in this one process."""
+    await asyncio.to_thread(recovery.recover_all, True)
+    watcher = asyncio.create_task(recovery.watchdog())
+    try:
+        yield
+    finally:
+        watcher.cancel()
+        with suppress(asyncio.CancelledError):
+            await watcher
+
+
+app = FastAPI(title="UnderCover", lifespan=lifespan)
 
 
 @app.exception_handler(DatabaseNotConfigured)
@@ -133,7 +149,7 @@ def start_claim(
 ) -> RunRecord:
     """Reserve a waiting claim and start its agent in the background."""
     run = runs.start(claim_id, request.thread_id)
-    background_tasks.add_task(runs.execute, run)
+    background_tasks.add_task(coordinator.execute_named, run)
     return run
 
 
@@ -240,3 +256,13 @@ def get_run_claim_summaries(run_id: UUID) -> list[ClaimSummary]:
     """Read only the summaries in this run's immutable snapshot."""
     parent = queue_runs.get(run_id)
     return [claim for claim in queries.queue() if claim.claim_id in parent.snapshot]
+
+
+@app.post(
+    "/api/claims/{claim_id}/runs/{run_id}/payment", operation_id="pay_from_attempt"
+)
+def pay_from_attempt(
+    claim_id: str, run_id: UUID, request: PaymentInput
+) -> PaymentRecord:
+    """Simulate payment only from an active unexpired claim attempt."""
+    return actions.pay_scoped(claim_id, run_id, request)
