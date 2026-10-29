@@ -62,6 +62,8 @@ def test_seed_reads_only_allowed_files(database, monkeypatch):
         "claims.json",
         "policy_wording.md",
         "instructions.md",
+        "queue_instructions.md",
+        "claims_manual.md",
     }
     with db.connect() as connection:
         company = connection.execute(

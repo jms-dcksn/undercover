@@ -9,6 +9,7 @@ from typing import LiteralString, cast
 from psycopg import sql
 from psycopg.types.json import Jsonb
 
+from backend import documents
 from backend.db import Connection, Row, connect, test_database_url
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,6 +21,7 @@ def initialize() -> None:
     with connect() as connection:
         schema = cast(LiteralString, Path(__file__).with_name("schema.sql").read_text())
         connection.execute(schema)
+        documents.load(connection, DATA)
 
 
 def insert_records(
@@ -51,6 +53,7 @@ def seed() -> None:
 
 def seed_records(connection: Connection) -> None:
     """Load seed records within the caller's transaction."""
+    documents.load(connection, DATA)
     plans = json.loads((DATA / "plans.json").read_text())
     company = json.loads((DATA / "company.json").read_text())
     settings = {
@@ -107,7 +110,8 @@ def rebuild() -> None:
     with connect() as connection:
         connection.execute(
             "TRUNCATE customers, plans, policies, handlers, claims, runs, "
-            "decisions, sign_offs, payments, activity RESTART IDENTITY CASCADE"
+            "decisions, sign_offs, payments, activity, queue_runs, tasks, "
+            "section_reads, document_sections RESTART IDENTITY CASCADE"
         )
         connection.execute("DELETE FROM settings WHERE key != 'purpose'")
         seed_records(connection)

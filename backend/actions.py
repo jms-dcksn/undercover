@@ -71,8 +71,9 @@ def decide(claim_id: str, request: DecisionInput) -> DecisionRecord:
             state = "waiting_for_sign_off"
         row = connection.execute(
             "INSERT INTO decisions "
-            "(claim_id, run_id, outcome, payout, explanation, policy_section) "
-            "VALUES (%s, %s, %s, %s, %s, %s) RETURNING *",
+            "(claim_id, run_id, outcome, payout, explanation, "
+            "policy_section, manual_version) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *",
             (
                 claim_id,
                 request.run_id,
@@ -80,6 +81,7 @@ def decide(claim_id: str, request: DecisionInput) -> DecisionRecord:
                 request.payout,
                 request.explanation,
                 request.policy_section,
+                setting(connection, "manual_version")["version"],
             ),
         ).fetchone()
         connection.execute(

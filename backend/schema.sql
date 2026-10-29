@@ -124,3 +124,26 @@ CREATE TABLE IF NOT EXISTS undercover.tasks (
 );
 ALTER TABLE undercover.queue_runs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE undercover.tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE undercover.decisions ADD COLUMN IF NOT EXISTS manual_version TEXT;
+CREATE TABLE IF NOT EXISTS undercover.document_sections (
+    document TEXT NOT NULL CHECK (document IN ('wording', 'manual')),
+    version TEXT NOT NULL,
+    section INTEGER NOT NULL,
+    heading TEXT NOT NULL,
+    text TEXT NOT NULL,
+    PRIMARY KEY (document, version, section)
+);
+CREATE TABLE IF NOT EXISTS undercover.section_reads (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    claim_id TEXT NOT NULL REFERENCES undercover.claims,
+    run_id UUID NOT NULL REFERENCES undercover.runs,
+    document TEXT NOT NULL,
+    version TEXT NOT NULL,
+    section INTEGER NOT NULL,
+    heading TEXT NOT NULL,
+    text TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS claim_reads ON undercover.section_reads (claim_id, id);
+ALTER TABLE undercover.document_sections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE undercover.section_reads ENABLE ROW LEVEL SECURITY;

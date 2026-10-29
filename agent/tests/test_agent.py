@@ -8,7 +8,6 @@ from langchain_core.messages import AIMessage
 from agent import main
 from agent.tools import claim_tools
 from backend import db
-from backend.main import app
 
 
 class StubModel(GenericFakeChatModel):
@@ -16,17 +15,6 @@ class StubModel(GenericFakeChatModel):
 
     def bind_tools(self, tools, **kwargs):
         return self
-
-
-@pytest.fixture
-def http_backend(monkeypatch):
-    monkeypatch.setattr(
-        main,
-        "backend",
-        lambda: httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test"
-        ),
-    )
 
 
 def reply(name, args, call_id):
@@ -38,7 +26,7 @@ def reply(name, args, call_id):
 def scripted_model(outcome, amount, pay):
     replies = [
         reply("read_claim", {}, "1"),
-        reply("read_policy_wording", {}, "2"),
+        reply("read_section", {"document": "wording", "section": 3}, "2"),
         reply("read_company", {}, "3"),
         reply(
             "record_decision",
@@ -113,7 +101,9 @@ def test_tools_are_scoped_and_reject_wrong_thread(claim_run, http_backend):
 
     assert asyncio.run(names()) == [
         "read_claim",
-        "read_policy_wording",
+        "list_sections",
+        "search_sections",
+        "read_section",
         "read_company",
         "record_decision",
         "request_payment",

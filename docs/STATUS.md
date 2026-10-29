@@ -99,3 +99,5 @@ Run one backend process. Business records persist in Postgres, but agent executi
 ## Harness implementation
 
 Phase 1 adds repeatable schema upgrades, stored parent runs/tasks, global run ownership, transactional distinct-claim admission and two-failure accounting. Python verification: 69 tests, 96.83% coverage, formatting/lint/types pass against a temporary marked test database. Queue model orchestration and the dashboard are pending. No development rebuild or live model run has been performed.
+
+Phase 2 adds versioned wording/manual section lookup, bounded text search, exact per-attempt read evidence and separate backend-owned instruction sets. New decisions retain manual version 2026.2; legacy records stay nullable. Python verification: 79 tests, 97.21% coverage. Synthetic scenarios exercise manual tool paths; they do not measure model decision accuracy.

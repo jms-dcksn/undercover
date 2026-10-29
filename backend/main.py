@@ -6,7 +6,7 @@ import psycopg
 from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from backend import actions, queries, queue_runs, runs
+from backend import actions, documents, queries, queue_runs, runs
 from backend.db import DatabaseNotConfigured, connect
 from backend.models import (
     ActivityInput,
@@ -18,6 +18,7 @@ from backend.models import (
     DecisionRecord,
     DelegateInput,
     Handler,
+    Instructions,
     PaymentInput,
     PaymentRecord,
     QueueRunInput,
@@ -25,6 +26,11 @@ from backend.models import (
     Reconciliation,
     RunInput,
     RunRecord,
+    SearchInput,
+    SectionInput,
+    SectionMatch,
+    SectionRead,
+    SectionReference,
     SignOffInput,
     SignOffRecord,
     TasksInput,
@@ -92,10 +98,15 @@ def get_handlers() -> list[Handler]:
 
 
 @app.get("/api/agent/instructions", operation_id="get_agent_instructions")
-def get_agent_instructions() -> TextDocument:
+def get_agent_instructions() -> Instructions:
     """Read the exact instructions supplied to the claims agent."""
     with connect() as connection:
-        return TextDocument.model_validate(queries.setting(connection, "instructions"))
+        claim = queries.setting(connection, "instructions")["text"]
+        return Instructions(
+            text=claim,
+            claim=claim,
+            queue=queries.setting(connection, "queue_instructions")["text"],
+        )
 
 
 @app.post("/api/claims/{claim_id}/decision", operation_id="record_decision")
@@ -194,3 +205,27 @@ def reconcile_queue_run(run_id: UUID) -> Reconciliation:
 def complete_queue_run(run_id: UUID) -> QueueRunRecord:
     """Reconcile authoritative outcomes and save the final run summary."""
     return queue_runs.complete(run_id)
+
+
+@app.get("/api/documents/{document}/sections", operation_id="list_sections")
+def list_sections(document: str) -> list[SectionReference]:
+    """List section headings and the current version of a business document."""
+    return documents.headings(document)
+
+
+@app.post("/api/documents/search", operation_id="search_sections")
+def search_sections(request: SearchInput) -> list[SectionMatch]:
+    """Search policy wording and manual sections with bounded snippets."""
+    return documents.search(request.query)
+
+
+@app.post("/api/claims/{claim_id}/runs/{run_id}/sections", operation_id="read_section")
+def read_section(claim_id: str, run_id: UUID, request: SectionInput) -> SectionRead:
+    """Return and persist the exact text read by the scoped active attempt."""
+    return documents.read(claim_id, run_id, request)
+
+
+@app.get("/api/claims/{claim_id}/sections", operation_id="get_section_reads")
+def get_section_reads(claim_id: str) -> list[SectionRead]:
+    """Read the versioned sections retrieved for this claim's attempts."""
+    return documents.reads(claim_id)

@@ -52,7 +52,7 @@ async def run(claim_id: str, thread_id: str) -> str:
     }
     replies = [
         call("read_claim", {}, "1"),
-        call("read_policy_wording", {}, "2"),
+        call("read_section", {"document": "wording", "section": 3}, "2"),
         call("read_company", {}, "3"),
         call(
             "record_decision",

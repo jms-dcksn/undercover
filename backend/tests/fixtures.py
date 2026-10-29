@@ -2,15 +2,19 @@
 
 from uuid import uuid4
 
+import httpx
 import pytest
 
+from agent import main
 from backend import db, manage
+from backend.main import app
 
 
 @pytest.fixture
 def database(monkeypatch):
     url = db.test_database_url()
     monkeypatch.setenv("DATABASE_URL", url)
+    manage.initialize()
     with db.connect() as connection:
         purpose = connection.execute(
             "SELECT payload FROM settings WHERE key = 'purpose'"
@@ -43,3 +47,14 @@ def claim_run(database):
             (run_id,),
         )
     return run_id
+
+
+@pytest.fixture
+def http_backend(monkeypatch):
+    monkeypatch.setattr(
+        main,
+        "backend",
+        lambda: httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ),
+    )

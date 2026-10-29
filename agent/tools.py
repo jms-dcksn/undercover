@@ -7,28 +7,28 @@ import httpx
 from langchain_core.tools import BaseTool, tool
 
 
-def claim_tools(
-    client: httpx.AsyncClient, claim_id: str, run_id: str
-) -> list[BaseTool]:
-    """Bind tools to one claim and record their actual execution."""
-    claim_path = f"/api/claims/{claim_id}"
-    event_path = f"{claim_path}/runs/{run_id}/activity"
+class ClaimHTTP:
+    """Record actual tool events around scoped HTTP requests."""
 
-    async def event(kind: str, message: str) -> None:
-        response = await client.post(
-            event_path, json={"kind": kind, "message": message}
+    def __init__(self, client: httpx.AsyncClient, event_path: str):
+        self.client = client
+        self.event_path = event_path
+
+    async def event(self, kind: str, message: str) -> None:
+        response = await self.client.post(
+            self.event_path, json={"kind": kind, "message": message}
         )
         response.raise_for_status()
 
     async def call(
-        name: str, method: str, path: str, body: dict[str, Any] | None
+        self, name: str, method: str, path: str, body: dict[str, Any] | None
     ) -> str:
-        await event("tool_started", name)
+        await self.event("tool_started", name)
         try:
-            response = await client.request(method, path, json=body)
+            response = await self.client.request(method, path, json=body)
             response.raise_for_status()
         except httpx.HTTPStatusError as error:
-            await event(
+            await self.event(
                 "tool_error",
                 f"{name}: request rejected ({error.response.status_code}).",
             )
@@ -36,10 +36,20 @@ def claim_tools(
                 {"error": error.response.json(), "status": error.response.status_code}
             )
         except httpx.RequestError:
-            await event("tool_error", f"{name}: backend connection failed.")
+            await self.event("tool_error", f"{name}: backend connection failed.")
             raise
-        await event("tool_finished", name)
+        await self.event("tool_finished", name)
         return response.text
+
+
+def claim_tools(
+    client: httpx.AsyncClient, claim_id: str, run_id: str
+) -> list[BaseTool]:
+    """Bind tools to one claim and record their actual execution."""
+    claim_path = f"/api/claims/{claim_id}"
+    event_path = f"{claim_path}/runs/{run_id}/activity"
+
+    call = ClaimHTTP(client, event_path).call
 
     @tool
     async def read_claim() -> str:
@@ -47,9 +57,31 @@ def claim_tools(
         return await call("Read claim and supporting records", "GET", claim_path, None)
 
     @tool
-    async def read_policy_wording() -> str:
-        """Read the full policy wording that governs the claim."""
-        return await call("Read policy wording", "GET", "/api/policy-wording", None)
+    async def list_sections(document: str) -> str:
+        """List numbered section headings for wording or manual."""
+        return await call(
+            "List document sections", "GET", f"/api/documents/{document}/sections", None
+        )
+
+    @tool
+    async def search_sections(query: str) -> str:
+        """Search both documents for section references and short snippets."""
+        return await call(
+            "Search document sections",
+            "POST",
+            "/api/documents/search",
+            {"query": query},
+        )
+
+    @tool
+    async def read_section(document: str, section: int) -> str:
+        """Read a complete numbered section of wording or manual for this attempt."""
+        return await call(
+            "Read document section",
+            "POST",
+            f"{claim_path}/runs/{run_id}/sections",
+            {"document": document, "section": section},
+        )
 
     @tool
     async def read_company() -> str:
@@ -86,7 +118,9 @@ def claim_tools(
 
     return [
         read_claim,
-        read_policy_wording,
+        list_sections,
+        search_sections,
+        read_section,
         read_company,
         record_decision,
         request_payment,

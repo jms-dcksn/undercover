@@ -46,6 +46,7 @@ class DecisionInput(BaseModel):
 
 
 class DecisionRecord(DecisionInput):
+    manual_version: str | None
     claim_id: str
     created_at: datetime
 
@@ -186,3 +187,39 @@ class Reconciliation(BaseModel):
     active: list[str]
     slots_remaining: int
     outside_cap: int
+
+
+class Instructions(TextDocument):
+    queue: str
+    claim: str
+
+
+class SectionReference(BaseModel):
+    document: Literal["wording", "manual"]
+    version: str
+    section: int
+    heading: str
+
+
+class DocumentSection(SectionReference):
+    text: str
+
+
+class SectionRead(DocumentSection):
+    id: int
+    claim_id: str
+    run_id: UUID
+    created_at: datetime
+
+
+class SectionInput(BaseModel):
+    document: Literal["wording", "manual"]
+    section: Annotated[int, Field(gt=0)]
+
+
+class SearchInput(BaseModel):
+    query: Annotated[str, Field(max_length=200)]
+
+
+class SectionMatch(SectionReference):
+    snippet: str

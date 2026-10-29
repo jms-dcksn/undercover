@@ -50,11 +50,11 @@ Separate queue and claim instructions in backend-owned files and expose both thr
 
 Success criteria:
 
-- [ ] Seed/index tests reproduce numbered sections and versions exactly, including tables and interpretation notes. Search returns matching section references; unknown documents/sections return `404` and empty searches have an explicit empty result.
-- [ ] The loader allowlist includes the manual but never opens `data/evals/` or `data/security/`. Agent tools expose neither filesystem/database access nor handler sign-off.
-- [ ] HTTP and stub-model tests prove section lookup replaces the full-document tool, retrieved text reaches only the scoped claim worker, and successful reads persist with their exact source text/version.
-- [ ] Synthetic scenarios exercise a third claim in 12 months, wild-animal loss and meals without receipts through manual reads. Also cover missing evidence versus an explicitly unmet condition, and a payout reduced to zero being declined. Referral explanations can state a potential payable amount while the saved referral payout remains zero.
-- [ ] Both instruction texts match the prompts actually supplied, including mandatory middleware additions; new decisions record the manual version. `npm run check:python` passes.
+- [x] Seed/index tests reproduce numbered sections and versions exactly, including tables and interpretation notes. Search returns matching section references; unknown documents/sections return `404` and empty searches have an explicit empty result.
+- [x] The loader allowlist includes the manual but never opens `data/evals/` or `data/security/`. Agent tools expose neither filesystem/database access nor handler sign-off.
+- [x] HTTP and stub-model tests prove section lookup replaces the full-document tool, retrieved text reaches only the scoped claim worker, and successful reads persist with their exact source text/version.
+- [x] Synthetic scenarios exercise a third claim in 12 months, wild-animal loss and meals without receipts through manual reads. Also cover missing evidence versus an explicitly unmet condition, and a payout reduced to zero being declined. Referral explanations can state a potential payable amount while the saved referral payout remains zero.
+- [x] Both instruction texts match the prompts actually supplied, including mandatory middleware additions; new decisions record the manual version. `npm run check:python` passes.
 
 ## Phase 3: Queue agent and fresh claim helpers
 
