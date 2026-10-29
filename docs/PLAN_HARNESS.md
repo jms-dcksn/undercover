@@ -2,7 +2,7 @@
 
 Extend the pilot described in `docs/STATUS.md` to meet `docs/HARNESS.md`. Keep FastAPI, local Postgres, LangChain `create_agent`, OpenRouter and the existing dashboard. Build one queue agent that plans and chooses work, delegating each claim to a fresh claim agent. The backend enforces execution and payment limits.
 
-Implementation is in progress. Checked criteria have automated evidence; live acceptance remains separately authorized. `docs/PLAN.md` stays unchanged.
+Implementation and automated acceptance are complete. Checked criteria have verification evidence; the separately authorized live trial remains pending. `docs/PLAN.md` stays unchanged.
 
 ## Decisions for review
 
@@ -111,10 +111,10 @@ Extend the existing isolated Postgres/Playwright harness with separate scripted 
 
 Success criteria:
 
-- [ ] Playwright covers capped queue start, stored to-do progress, fresh claim work, section reads, a failure followed by retry, two failures left for a handler, omitted-work reconciliation, refresh persistence and the final summary through real HTTP and test Postgres.
-- [ ] Existing approve/decline/refer, duplicate-start and sign-off/payment regressions pass. Automated tests run without `OPENROUTER_API_KEY` and never contact a model provider.
-- [ ] `npm run check` exits successfully with the existing format, lint, type, coverage and end-to-end gates intact. Record the actual results in `docs/STATUS.md`.
-- [ ] Document cross-platform setup, uncapped/capped/named commands, the destructive rebuild boundary, two-failure behavior and single-process interruption recovery. Verify development and test targets remain separate and the frontend contains no credentials.
+- [x] Playwright covers capped queue start, stored to-do progress, fresh claim work, section reads, a failure followed by retry, two failures left for a handler, omitted-work reconciliation, refresh persistence and the final summary through real HTTP and test Postgres.
+- [x] Existing approve/decline/refer, duplicate-start and sign-off/payment regressions pass. Automated tests run without `OPENROUTER_API_KEY` and never contact a model provider.
+- [x] `npm run check` exits successfully with the existing format, lint, type, coverage and end-to-end gates intact. Record the actual results in `docs/STATUS.md`.
+- [x] Document cross-platform setup, uncapped/capped/named commands, the destructive rebuild boundary, two-failure behavior and single-process interruption recovery. Verify development and test targets remain separate and the frontend contains no credentials.
 - [ ] Separately authorized live acceptance: stop development runs, run `npm run db:rebuild`, restart the app with `MODEL_NAME` unset, then run `npm run claims:run -- --limit 5`. Observe five distinct claims handled autonomously on the default model, visible task updates and per-claim section reads; the other 20 remain waiting. Record actual outcomes and any failure without using evaluation answers. If authorization or provider access is unavailable, leave this criterion unchecked and report the reason.
 
 The real-model acceptance run spends API credit and rebuilding deletes existing development outcomes. Obtain explicit authorization for that pair of operations during implementation. Every live trial must reseed first and use a five-claim cap; do not substitute an uncapped live run. Stub tests verify the configured model string but cannot establish provider availability or decision accuracy.
@@ -124,3 +124,13 @@ The real-model acceptance run spends API credit and rebuilding deletes existing 
 After review and an implementation request, build the six phases in order. Add tests with each change, verify and tick criteria here, update `docs/STATUS.md` and commit each phase with the pre-commit hook enabled. Run the full suite after the final phase. Never push.
 
 Do not read evaluation answers, change unrelated notebook work, add another agent framework or build later-day durable graphs, swarms, long-term memory, sign-in, customer messaging or AWS resources.
+
+
+## Verification evidence
+
+- `npm run check`: 102 Python tests (96.61% coverage), 20 dashboard tests (98.85% statement coverage), nine Playwright scenarios; lint, format and type gates pass.
+- Tests use a temporary marked Postgres database distinct from development. The upgrade regression starts from pilot table shapes and preserves decisions, payments, activity and null legacy manual provenance through two initializations.
+- Real backend process termination/restart releases interrupted ownership; saved-business-action and sign-off boundaries have separate recovery regressions.
+- Playwright covers the capped parent, visible plan updates, clean helpers, section reads, retry/exhaustion, premature completion rejection, refresh and final saved summary through real HTTP/Postgres. Playwright MCP confirms desktop/mobile fit, visible keyboard focus and zero application console errors.
+- `npx vite build dashboard` and a scan for the configured database/API credential values pass.
+- No evaluation/security files were read, no live model calls were made, and development outcomes were not rebuilt. Live acceptance stays unchecked until explicit approval to rebuild development and spend API credit on exactly five claims. Provider availability and real decision accuracy are unverified.

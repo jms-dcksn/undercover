@@ -155,6 +155,9 @@ class TaskInput(BaseModel):
 
 
 class TaskRecord(TaskInput):
+    attempts: int
+    failures: int
+    error: str | None
     parent_id: UUID
     position: int
     admitted: bool
@@ -215,7 +218,7 @@ class SectionRead(DocumentSection):
 
 
 class SectionInput(BaseModel):
-    document: Literal["wording", "manual"]
+    document: Text
     section: Annotated[int, Field(gt=0)]
 
 

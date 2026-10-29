@@ -48,7 +48,10 @@ async def execute(parent: QueueRunRecord) -> None:
         async with asyncio.timeout(
             max(0, (parent.deadline - datetime.now(UTC)).total_seconds())
         ):
-            await invoke(parent)
+            if parent.snapshot:
+                await invoke(parent)
+            else:
+                await asyncio.to_thread(queue_runs.complete, parent.id)
     except asyncio.CancelledError:
         await fail(parent.id, "Backend interrupted; start a new run.")
         raise

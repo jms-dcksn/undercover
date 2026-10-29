@@ -127,6 +127,14 @@ function RunProgress({ run }: Readonly<{ run: QueueRun }>) {
               </span>
               <span className="identifier">{task.claim_id}</span>{" "}
               {task.description}
+              {task.admitted ? (
+                <p className="muted">
+                  {task.attempts} attempts · {task.failures} technical failures
+                </p>
+              ) : null}
+              {task.error ? (
+                <p className="muted">Last technical error: {task.error}</p>
+              ) : null}
               {task.result ? (
                 <p className="muted task-result">{task.result}</p>
               ) : null}

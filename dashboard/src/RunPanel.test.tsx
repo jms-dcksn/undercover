@@ -93,6 +93,9 @@ it("renders every persisted task state and locks active controls", () => {
     "left_for_handler",
   ];
   const tasks = states.map((state, position) => ({
+    attempts: 1,
+    failures: state === "left_for_handler" ? 2 : 0,
+    error: state === "left_for_handler" ? "Provider failed" : null,
     claim_id: `CLAIM-${String(position)}`,
     state,
     description: "Assess claim",

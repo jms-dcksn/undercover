@@ -1,14 +1,12 @@
 # Status
 
-The pilot uses local Postgres for development and tests. The database launcher creates and seeds development storage, prepares an isolated test database and saves the local connections in `.env`.
+The pilot and harness use FastAPI, local Postgres, LangChain and React. One queue agent chooses the order of a waiting-claim snapshot, stores its to-do list and delegates each claim to a fresh helper. Evidence stays in that helper; the parent receives summaries and saved one-line outcomes.
 
-The dashboard includes a searchable/filterable queue, full claim evidence, customer history, policy/plan terms, live activity, read-only instructions and handler sign-off/payment controls. It follows the brand and adapts to mobile widths.
+Handlers can start all waiting claims, a positive distinct-claim cap (the trial input defaults to five), or one selected claim. The dashboard restores the latest run after refresh, polls across gaps between claims, and retains terminal summaries. Claim screens show full evidence, activity, exact versioned sections read and sign-off/payment controls. The instructions screen shows the exact queue and claim prompts.
 
-The agent fetches its instructions and records through FastAPI and records real tool activity. The API runs it in the background, prevents duplicate starts and preserves committed decisions/payments on failure. The model defaults to `openai/gpt-6-luna` with low reasoning effort unless `MODEL_NAME` is set.
+## Setup and upgrades
 
-## Setup
-
-Install dependencies and start the database in one terminal:
+Install and start storage in one terminal (macOS or Windows):
 
 ```text
 uv sync
@@ -22,19 +20,9 @@ Keep it running, then start the app in another terminal:
 npm run dev
 ```
 
-The launcher creates `undercover` and `undercover_test`, seeds 25 development claims and updates only the two database settings in the ignored `.env`. Existing API keys and model settings are preserved. It uses a local socket on macOS/Linux and loopback TCP on Windows. Backend connections reject remote hosts.
+Open `http://localhost:5173`; FastAPI runs on port 8000. The launcher keeps data in ignored `.local/postgres`, initializes/upgrades the schema, seeds the 25 development claims and prepares a separate marked test database. It updates only `DATABASE_URL` and `TEST_DATABASE_URL` in ignored `.env`. Press Enter in the storage terminal to stop Postgres without deleting its data.
 
-Configuration:
-
-- `DATABASE_URL`: generated local development connection to `undercover`.
-- `TEST_DATABASE_URL`: generated local connection to `undercover_test`. Tests clear records only in this marked disposable database.
-- `OPENROUTER_API_KEY`: needed for real agent runs, never for tests.
-- `MODEL_NAME`: optional OpenRouter model override.
-- `BACKEND_URL`: defaults to `http://127.0.0.1:8000`.
-
-Development data is stored in the ignored `.local/postgres` directory. Press Enter in the database terminal to stop Postgres; restarting the launcher retains saved decisions/payments and refreshes the connection settings.
-
-For an existing local Postgres installation, create separate development and test databases, set their loopback/socket connection strings in `.env`, then run:
+For an existing local Postgres installation, stop the backend, configure distinct development/test databases in `.env`, then run:
 
 ```text
 uv run -m backend.manage init
@@ -43,67 +31,67 @@ uv run -m backend.manage init-test
 npm run dev
 ```
 
-Initialization creates only the private `undercover` schema and its tables. Seeding adds the 25 queue claims and reference data without overwriting existing state. No evaluation or manual files are loaded.
+`init` applies the repeatable additive harness upgrade and loads versioned document sections/instructions. Run it before starting an upgraded backend. Existing decisions, payments, activity and runs survive repeated initialization. `seed` preserves existing business records. New decisions record manual version 2026.2; legacy decisions retain null provenance. No evaluation or security data is loaded.
 
-Open `http://localhost:5173`; the backend runs on port 8000. Select a waiting claim and choose **Run claim**. An approval above $1,000 waits for handler sign-off; then choose **Simulate payment**. No real payment is made.
+Configuration:
 
-## Reset and run the queue
+- `DATABASE_URL`: local development storage, normally database `undercover`.
+- `TEST_DATABASE_URL`: a different disposable local database, normally `undercover_test`.
+- `OPENROUTER_API_KEY`: required only for real model runs.
+- `MODEL_NAME`: optional override; default `deepseek/deepseek-v4.1-flash` with low reasoning effort. Arbitrary overrides do not force that provider setting.
+- `BACKEND_URL`: agent/CLI backend, default `http://127.0.0.1:8000`.
 
-To start over, stop `npm run dev` and keep Postgres running, then run:
+Connections accept local sockets or loopback hosts only. Test setup rejects aliases or alternate logins pointing at the development database and refuses to mark existing application data disposable.
+
+## Running work
+
+With the app and Postgres running:
+
+```text
+npm run claims:run
+npm run claims:run -- --limit 5
+npm run claims:run -- --claim CLM-1001
+```
+
+These commands start one backend parent run and watch its persisted progress; the model chooses queue order. `--limit` and `--claim` are mutually exclusive. Repeating the command while work is active attaches to that run. Ctrl+C stops watching, while backend work may continue. Polling follows the parent deadline rather than a fixed single-claim timeout. Failed parent runs and exhausted technical failures return a nonzero exit code. Real runs may spend API credit.
+
+To delete development outcomes and reload the allowed business files, stop the app, keep Postgres running and explicitly run:
 
 ```text
 npm run db:rebuild
 ```
 
-This deletes application records, including decisions, sign-offs, payments, runs and activity, in the database selected by `DATABASE_URL`. It reloads the 25 claims and reference records from the allowed `data/` files, plus the backend's agent instructions. The reload is transactional: a loading error preserves the previous data. It does not change `.env` or the separate test database. Normal `seed` preserves existing records; `rebuild` replaces them.
+Rebuild clears decisions, sign-offs, payments, parent runs, tasks, attempts, failure counts, activity and read evidence, then loads the 25 claims, reference records, wording/manual index and instructions transactionally. It preserves `.env` and the separate test database. Restart the app before running work. Every live trial must rebuild first and use a five-claim cap; do not run an uncapped live trial.
 
-Restart `npm run dev`, then run this in another terminal:
+## Limits and recovery
 
-```text
-npm run claims:run
-```
+Run one backend process. Postgres stores business outcomes and ownership; model conversations are not durable and are not resumed after restart.
 
-The script processes a snapshot of waiting claims sequentially through `BACKEND_URL`, printing each run's status. It uses the backend's configured model and `OPENROUTER_API_KEY`, so real runs may incur API charges. Completed, in-progress and waiting-for-sign-off claims are skipped. Recorded failures are reported while remaining claims continue; the command exits with status 1 if any failed. Connection/API errors or a 150-second polling timeout stop the batch for inspection.
+- The parent snapshots waiting, undecided claims. New arrivals wait for another run. Decided, sign-off and needs-handler claims are excluded.
+- One active parent covers both queue and named work. Delegation atomically reserves one distinct-claim cap slot and one active attempt. Retries reuse the slot.
+- An undecided claim's first failed attempt returns it to waiting for retry during the run. Its second failure, counted across runs/restarts since rebuild, sets `needs_handler`. This is a technical failure with no insurance decision. A `refer` decision is separate and always has zero payout.
+- Model middleware retries transient failures once per step, with SDK retries disabled. Attempts have 120-second and 40-step limits. Parent time/step budgets grow with scope and the two-attempt allowance. A failed coordinator gets one fresh invocation from saved tasks/results, then fails visibly.
+- Reconciliation blocks completion while admitted work is active, requires a first-failure retry, and catches missed claims within the cap. Summaries count saved decisions, payments, technical failures, handler work and claims outside the cap.
+- Startup marks interrupted parents failed and releases unfinished claim ownership. The watchdog cleans up expired work and retries storage cleanup when the database returns. A new run can pick up eligible work; the old model conversation is discarded.
+- Saved decisions/payments are preserved. Lost write responses are checked against stored actions; permitted unpaid approvals recover without deciding again. Late attempt writes are rejected. Payments above $1,000 remain blocked until eligible handler sign-off; repeated payments are idempotent. No real payments or customer messages occur.
 
-Over-limit payouts still require handler sign-off in the dashboard. Refresh the queue to see updates. Ctrl+C stops the script, but the current backend run may still finish. Rerunning processes only claims still waiting, including failed undecided claims.
+## APIs
 
-The equivalent Python commands are `uv run -m backend.manage rebuild` and `uv run -m agent.batch`. Both npm commands work on macOS and Windows.
+`POST /api/agent/runs` requires `thread_id`, nullable `claim_limit` and nullable `claim_id`. Read `/api/agent/runs/latest` or `/api/agent/runs/{id}` for scope, state, deadline, ordered tasks, attempt/failure details, summary and error. Task/delegation/reconciliation/completion operations live below the run path. The existing named claim run/detail/activity routes remain available.
 
-## Tests
-
-With the development database launcher running, use `npm run check`. For a temporary test server instead, run:
-
-```text
-uv run -m e2e.local
-```
-
-Copy the printed `TEST_DATABASE_URL` line into `.env`, replacing any previous value. Keep that terminal open and run `npm run check` in another terminal. Press Enter in the helper terminal to stop and delete the test database; update the URL each time you start a new one.
-
-First test initialization requires an empty application schema; it refuses to relabel an existing application database as disposable. Loopback aliases and different logins to the same server/database are treated as the same target. Tests cannot point at development.
-
-`npm run check` runs all checks; `npm run check:python` and `npm run check:ts` run the unit checks separately. Playwright uses ports 8010 and 5174, a marked test database and a delayed scripted model. It never reuses the development servers or calls OpenRouter.
+`GET /api/documents/{document}/sections` lists headings for `wording` or `manual`; `POST /api/documents/search` returns bounded snippets. A scoped attempt reads a section through `/api/claims/{claim}/runs/{attempt}/sections`, saving the exact returned text/version. `/api/claims/{claim}/sections` exposes that claim's read evidence. Claim tools have no whole-document, sign-off, filesystem or database access.
 
 ## Verification
 
-- Local Postgres: 25 seeded waiting claims, three plans and three handlers. Repeat seeding preserves decisions/payments, and saved state survives a backend restart. Private application tables have RLS enabled.
-- Python: 64 tests pass with 97.89% coverage; formatting, lint and types pass. Coverage includes payment boundaries/concurrency, scoped tools, time/iteration limits, failures after committed actions, local connection enforcement, database isolation, a real Postgres stop/restart test, transactional rebuild/rollback and sequential processing of 25 claims with mocked HTTP responses.
-- Dashboard: 13 tests pass with over 99% statement coverage. Playwright MCP checks confirm the 25-claim desk, full documents/history, read-only instructions, keyboard focus and desktop/mobile layouts with no horizontal overflow or application console errors.
-- Playwright: eight end-to-end scenarios cover approve/decline/refer, live work, duplicate starts, the exact $1,000 boundary, blocked agent payment, handler sign-off, simulated payment, failure display and refresh persistence. MCP also verifies the sign-off flow and saved payment after a backend restart.
-- Production dashboard build and frontend secret scan pass. No live model calls were made, and model decision accuracy has not been evaluated.
-- `npm run check` passes against the configured local databases. The development dashboard returns 25 claims with no console errors, and its data remains unchanged after the test suite. Database connection details are absent from the production frontend build.
+Run `npm run check` with the storage launcher running. It runs Python lint/format/types/tests, dashboard lint/format/types/tests and Playwright serially with the existing coverage thresholds. Do not overlap database-backed diagnostics and Playwright: fixtures reset shared test data.
 
-## Pilot limits
+For an independent temporary test database, run `uv run -m e2e.local`, follow its printed connection instructions, and keep that terminal open. This database is deleted when the helper exits; update the test URL on each launch.
 
-Run one backend process. Business records persist in Postgres, but agent execution is not durable: stopping the backend during a run can leave a claim in progress and requires inspection before manual recovery. Completed decisions are immutable, and failed runs preserve committed decisions/payments. There is no sign-in, real payment or customer messaging.
+Verified locally with `npm run check`:
 
-## Harness implementation
+- Python: 102 tests, 96.61% coverage; format, lint and types pass. Includes pilot-schema upgrades without data loss, scoped HTTP tools, caps/concurrent ownership, exact section evidence, retries/exhaustion, lost responses, payment boundaries and a real backend process restart.
+- Dashboard: 20 tests, 98.85% statement coverage. Playwright MCP checks confirm desktop/mobile layout, no horizontal overflow at 390px, visible keyboard focus and zero application console errors.
+- Playwright: nine scenarios pass through real HTTP and test Postgres, including capped task progress, retries, two failures left for a handler, reconciliation, refresh, section evidence and existing decision/sign-off/payment flows.
+- Production dashboard build and a scan for configured database/API credentials pass.
 
-Phase 1 adds repeatable schema upgrades, stored parent runs/tasks, global run ownership, transactional distinct-claim admission and two-failure accounting. Python verification: 69 tests, 96.83% coverage, formatting/lint/types pass against a temporary marked test database. Queue model orchestration and the dashboard are pending. No development rebuild or live model run has been performed.
-
-Phase 2 adds versioned wording/manual section lookup, bounded text search, exact per-attempt read evidence and separate backend-owned instruction sets. New decisions retain manual version 2026.2; legacy records stay nullable. Python verification: 79 tests, 97.21% coverage. Synthetic scenarios exercise manual tool paths; they do not measure model decision accuracy.
-
-Phase 3 adds the HTTP-only queue agent, summary-only coordinator tools and fresh claim workers. The shared default is `deepseek/deepseek-v4.1-flash` with low reasoning effort; overrides remain supported. Scripted models verify reversed work ordering, five-claim/uncapped/oversized caps, named and empty queues, clean worker histories and evidence isolation. Python: 84 tests, 97.50% coverage. Provider availability remains unverified.
-
-Phase 4 adds bounded model retry middleware (SDK retries disabled), two-attempt named recovery, one fresh coordinator recovery, expiry cleanup and startup interruption recovery. Late agent payments are attempt-scoped. Lost decision/payment responses are reconciled against saved records, and permitted unpaid approvals recover without another decision. A separate test terminates and restarts a real backend process. Python: 97 tests, 96.63% coverage; all checks pass without provider calls.
-
-Phase 5 adds queue controls, stored task progress, parent-based polling across gaps/reloads, technical handler state, exact section-read display and both instruction sets. The CLI starts or watches one parent, supports `--limit`/`--claim`, follows its deadline and handles interruption without duplicate work. Dashboard: 20 tests and 99.41% statement coverage. Playwright MCP verified desktop/mobile layout (390px fits), visible keyboard focus and zero application console errors. The new capped real-HTTP/stub-model browser scenario passes, including refresh, retries, two failures and section evidence.
+Automated models are scripted and never contact OpenRouter. The development and test targets remain separate; development storage was not rebuilt or used for live model calls during implementation. Live default-model acceptance and decision accuracy remain unverified: rebuilding development outcomes and spending API credit on exactly five claims require explicit authorization. See the remaining checkbox in `docs/PLAN_HARNESS.md`.

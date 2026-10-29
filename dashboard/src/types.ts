@@ -69,6 +69,9 @@ export interface TextDocument {
 export type TaskState = "todo" | "in_progress" | "done" | "left_for_handler";
 
 export interface QueueTask {
+  attempts: number;
+  failures: number;
+  error: string | null;
   claim_id: string;
   description: string;
   state: TaskState;

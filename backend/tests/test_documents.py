@@ -63,6 +63,9 @@ def test_reads_scoped_to_active_attempt_and_exact_text(claim_run):
         client.post(path, json={"document": "manual", "section": 99}).status_code == 404
     )
     assert (
+        client.post(path, json={"document": "unknown", "section": 1}).status_code == 404
+    )
+    assert (
         client.post(
             path.replace("TEST-CLAIM", "CLM-1001"),
             json={"document": "manual", "section": 5},

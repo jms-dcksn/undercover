@@ -39,7 +39,11 @@ def read_row(connection: Connection, run_id: UUID, *, active: bool = False) -> R
 def record(connection: Connection, row: Row) -> QueueRunRecord:
     """Read the ordered tasks with a parent record."""
     tasks = connection.execute(
-        "SELECT * FROM tasks WHERE parent_id = %s ORDER BY position", (row["id"],)
+        "SELECT t.*, c.failures, c.last_error AS error, "
+        "(SELECT count(*) FROM runs r WHERE r.parent_id = t.parent_id "
+        "AND r.claim_id = t.claim_id) AS attempts FROM tasks t "
+        "JOIN claims c ON c.id = t.claim_id WHERE parent_id = %s ORDER BY position",
+        (row["id"],),
     ).fetchall()
     return QueueRunRecord.model_validate({**row, "tasks": tasks})
 

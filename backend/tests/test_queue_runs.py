@@ -182,8 +182,25 @@ def test_additive_initialization_preserves_business_records(claim_run):
         ),
     )
     actions.pay("TEST-CLAIM", actions.PaymentInput(amount=Decimal("1000")))
+    with db.connect() as connection:
+        connection.execute("UPDATE decisions SET manual_version = NULL")
     before = client.get("/api/claims/TEST-CLAIM").json()
     events = runs.events("TEST-CLAIM")
+    with db.connect() as connection:
+        connection.execute(
+            "DROP TABLE section_reads, document_sections, tasks, queue_runs CASCADE"
+        )
+        connection.execute("ALTER TABLE runs DROP COLUMN parent_id, DROP COLUMN error")
+        connection.execute("ALTER TABLE decisions DROP COLUMN manual_version")
+        connection.execute(
+            "ALTER TABLE claims DROP COLUMN failures, DROP COLUMN last_error, "
+            "DROP CONSTRAINT claims_state_check"
+        )
+        connection.execute(
+            "ALTER TABLE claims ADD CONSTRAINT claims_state_check "
+            "CHECK (state IN ('waiting', 'in_progress', "
+            "'waiting_for_sign_off', 'decided'))"
+        )
     manage.initialize()
     manage.initialize()
     assert client.get("/api/claims/TEST-CLAIM").json() == before

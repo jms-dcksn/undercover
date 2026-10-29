@@ -116,16 +116,17 @@ for (const [id, result] of [
   });
 }
 
-test("failed runs are visible and can be manually retried", async ({
-  page,
-}) => {
+test("two failures leave a claim for a handler", async ({ page }) => {
   await page.goto("/");
   await select(page, "E2E-FAIL");
   await page.getByRole("button", { name: "Run claim" }).click();
   await expect(
-    page.getByText(/Agent run failed \(RuntimeError\)/),
+    page.getByText(/Agent run failed \(RuntimeError\)/).first(),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Run claim" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Run claim" })).toBeDisabled();
+  await expect(
+    page.getByText(/Technical failure after 2 attempts/),
+  ).toBeVisible();
 });
 
 test("mobile desk fits and has no application console errors", async ({

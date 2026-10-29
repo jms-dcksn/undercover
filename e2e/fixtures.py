@@ -6,6 +6,11 @@ from backend.db import connect
 from backend.manage import insert_records, seed
 
 SCENARIOS = {
+    "HARNESS-RETRY": ("approve", "100.00"),
+    "HARNESS-TWICE": ("refer", "0.00"),
+    "HARNESS-ONE": ("decline", "0.00"),
+    "HARNESS-TWO": ("refer", "0.00"),
+    "HARNESS-THREE": ("approve", "100.00"),
     "E2E-APPROVE": ("approve", "420.00"),
     "E2E-LIMIT": ("approve", "1000.00"),
     "E2E-OVER": ("approve", "1250.00"),
