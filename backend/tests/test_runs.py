@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from backend import actions, db, runs
+from backend import actions, db, runs, worker
 from backend.main import app
 from backend.models import DecisionInput
 
@@ -33,9 +33,9 @@ def test_failed_run_returns_to_waiting_and_can_retry(database, monkeypatch):
     async def fail(claim_id, thread_id):
         raise RuntimeError("synthetic failure")
 
-    monkeypatch.setattr(runs, "arun", fail)
+    monkeypatch.setattr(worker, "arun", fail)
     run = runs.start("CLM-1001", "test")
-    asyncio.run(runs.execute(run))
+    asyncio.run(worker.execute(run))
     run = runs.current("CLM-1001")
     assert run.state == "failed"
     assert client.get("/api/claims/CLM-1001").json()["summary"]["state"] == "waiting"
@@ -72,7 +72,7 @@ def test_failure_preserves_committed_decision_and_payment(database, monkeypatch,
             actions.pay(claim_id, actions.PaymentInput(amount=Decimal("420.00")))
         raise RuntimeError("after commit")
 
-    monkeypatch.setattr(runs, "arun", fail_after_decision)
+    monkeypatch.setattr(worker, "arun", fail_after_decision)
     client.post("/api/claims/CLM-1001/run", json={"thread_id": "test"})
     detail = client.get("/api/claims/CLM-1001").json()
     assert detail["summary"]["state"] == "decided"
@@ -85,20 +85,20 @@ def test_timeout_and_missing_decision(database, monkeypatch):
     async def wait(claim_id, thread_id):
         await asyncio.Event().wait()
 
-    monkeypatch.setattr(runs, "TIMEOUT_SECONDS", 0.01)
-    monkeypatch.setattr(runs, "arun", wait)
+    monkeypatch.setattr(worker, "TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(worker, "arun", wait)
     run = runs.start("CLM-1001", "test")
-    asyncio.run(runs.execute(run))
+    asyncio.run(worker.execute(run))
     assert "TimeoutError" in runs.events("CLM-1001")[-1].message
 
     async def no_decision(claim_id, thread_id):
         return "No action"
 
-    monkeypatch.setattr(runs, "arun", no_decision)
+    monkeypatch.setattr(worker, "arun", no_decision)
     with db.connect() as connection:
         connection.execute("UPDATE queue_runs SET state = 'failed'")
     retry = runs.start("CLM-1001", "retry")
-    asyncio.run(runs.execute(retry))
+    asyncio.run(worker.execute(retry))
     assert "without recording a decision" in runs.events("CLM-1001")[-1].message
 
 
@@ -122,7 +122,7 @@ def test_activity_and_completed_run(database, monkeypatch):
         )
         return "Saved"
 
-    monkeypatch.setattr(runs, "arun", decide)
+    monkeypatch.setattr(worker, "arun", decide)
     client.post("/api/claims/CLM-1001/run", json={"thread_id": "test"})
     run = runs.current("CLM-1001")
     assert run.state == "completed"

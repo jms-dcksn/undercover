@@ -5,7 +5,7 @@ import asyncio
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
 from langchain_core.messages import AIMessage
 
-from agent import main, queue
+from agent import http, queue
 from agent.main import arun
 from backend import db
 from e2e.fixtures import SCENARIOS
@@ -82,7 +82,7 @@ async def run(claim_id: str, thread_id: str) -> str:
 
 async def run_queue(run_id):
     """Script the parent separately from each fresh child model through real HTTP."""
-    async with main.backend() as client:
+    async with http.backend() as client:
         response = await client.get(f"/api/agent/runs/{run_id}")
         response.raise_for_status()
         parent = response.json()

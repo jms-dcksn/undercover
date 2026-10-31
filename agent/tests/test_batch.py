@@ -144,7 +144,10 @@ def test_bad_flags(arguments, monkeypatch):
     "failure", [httpx.ConnectError("offline"), KeyboardInterrupt(), None]
 )
 def test_main_exit_and_interruption(failure, monkeypatch, capsys):
+    monkeypatch.setenv("BACKEND_URL", "http://queue-backend:9000")
+
     def run(client, limit, claim_id):
+        assert str(client.base_url) == "http://queue-backend:9000"
         if failure:
             raise failure
         return 0

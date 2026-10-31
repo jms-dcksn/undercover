@@ -11,7 +11,7 @@ from langchain_core.messages import AIMessage
 from agent import main, queue
 from agent.tests.test_agent import reply, scripted_model
 from agent.tests.test_queue import CapturingModel
-from backend import actions, coordinator, db, queue_runs, recovery, runs
+from backend import actions, coordinator, db, queue_runs, recovery, runs, worker
 from backend.main import app
 from backend.models import DecisionInput
 from backend.tests.test_queue_runs import parent, plan
@@ -34,7 +34,7 @@ def test_fail_retry_exhaustion_and_later_work(database, http_backend, monkeypatc
             claim_id, thread_id, scripted_model("decline", "0", False)
         )
 
-    monkeypatch.setattr(runs, "arun", child)
+    monkeypatch.setattr(worker, "arun", child)
     tasks = [
         {"claim_id": claim_id, "description": "Assess claim", "state": "todo"}
         for claim_id in ids

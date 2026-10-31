@@ -44,6 +44,35 @@ export default defineConfig(
     languageOptions: { globals: globals.node },
   },
   {
+    files: ["dashboard/src/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["./main", "./main.tsx"],
+              message:
+                "Import shared modules rather than the application entry point.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["dashboard/src/api.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: ["react", "react-dom", "./useResource"],
+          patterns: ["./main", "./main.tsx"],
+        },
+      ],
+    },
+  },
+  {
     files: ["dashboard/src/**/*.tsx"],
     extends: [
       reactHooks.configs.flat["recommended-latest"],

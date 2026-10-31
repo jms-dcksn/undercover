@@ -8,7 +8,16 @@ import psycopg
 from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from backend import actions, coordinator, documents, queries, queue_runs, recovery, runs
+from backend import (
+    actions,
+    coordinator,
+    documents,
+    queries,
+    queue_runs,
+    recovery,
+    runs,
+    worker,
+)
 from backend.db import DatabaseNotConfigured, connect
 from backend.models import (
     ActivityInput,
@@ -38,6 +47,7 @@ from backend.models import (
     TasksInput,
     TextDocument,
 )
+from backend.records import setting
 
 
 @asynccontextmanager
@@ -97,14 +107,14 @@ def get_claim(claim_id: str) -> ClaimDetail:
 def get_policy_wording() -> TextDocument:
     """Read the full policy wording used for decisions."""
     with connect() as connection:
-        return TextDocument.model_validate(queries.setting(connection, "wording"))
+        return TextDocument.model_validate(setting(connection, "wording"))
 
 
 @app.get("/api/company", operation_id="get_company")
 def get_company() -> Company:
     """Read company identity, currency and the payout approval limit."""
     with connect() as connection:
-        return Company.model_validate(queries.setting(connection, "company"))
+        return Company.model_validate(setting(connection, "company"))
 
 
 @app.get("/api/handlers", operation_id="get_handlers")
@@ -117,11 +127,11 @@ def get_handlers() -> list[Handler]:
 def get_agent_instructions() -> Instructions:
     """Read the exact instructions supplied to the claims agent."""
     with connect() as connection:
-        claim = queries.setting(connection, "instructions")["text"]
+        claim = setting(connection, "instructions")["text"]
         return Instructions(
             text=claim,
             claim=claim,
-            queue=queries.setting(connection, "queue_instructions")["text"],
+            queue=setting(connection, "queue_instructions")["text"],
         )
 
 
@@ -211,7 +221,7 @@ def delegate_claim(
 ) -> RunRecord:
     """Reserve a cap slot and start a fresh bounded claim attempt."""
     attempt = queue_runs.delegate(run_id, request.claim_id)
-    background_tasks.add_task(runs.execute, attempt)
+    background_tasks.add_task(worker.execute, attempt)
     return attempt
 
 

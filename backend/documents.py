@@ -1,7 +1,6 @@
 """Small versioned section index for the two approved business documents."""
 
 import re
-from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -16,7 +15,7 @@ from backend.models import (
     SectionRead,
     SectionReference,
 )
-from backend.queries import required
+from backend.records import active_run, required
 
 
 def split_sections(document: str, text: str) -> list[DocumentSection]:
@@ -128,11 +127,7 @@ def read(claim_id: str, run_id: UUID, request: SectionInput) -> SectionRead:
             ).fetchone(),
             "Claim",
         )
-        run = connection.execute(
-            "SELECT * FROM runs WHERE id = %s AND claim_id = %s", (run_id, claim_id)
-        ).fetchone()
-        if not run or run["state"] != "running" or run["deadline"] <= datetime.now(UTC):
-            raise HTTPException(409, "This claim attempt is no longer active.")
+        active_run(connection, claim_id, run_id)
         section = required(
             connection.execute(
                 "SELECT d.* FROM document_sections d JOIN settings s "

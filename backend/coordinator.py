@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 import psycopg
 
 from agent.queue import arun
-from backend import queue_runs, recovery, runs
+from backend import queue_runs, recovery, worker
 from backend.db import DatabaseNotConfigured
 from backend.models import QueueRunRecord, RunRecord
 
@@ -70,13 +70,13 @@ async def execute_named(attempt: RunRecord) -> None:
     if attempt.parent_id is None:
         raise ValueError("Named work requires a parent run.")
     try:
-        await runs.execute(attempt)
+        await worker.execute(attempt)
         check = await asyncio.to_thread(queue_runs.reconcile, attempt.parent_id)
         if check.retry:
             retry = await asyncio.to_thread(
                 queue_runs.delegate, attempt.parent_id, attempt.claim_id
             )
-            await runs.execute(retry)
+            await worker.execute(retry)
         await asyncio.to_thread(queue_runs.complete, attempt.parent_id)
     except asyncio.CancelledError:
         await fail(attempt.parent_id, "Backend interrupted; start a new run.")

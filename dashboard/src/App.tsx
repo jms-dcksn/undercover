@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useResource } from "./api";
+import { useResource } from "./useResource";
 import { Claim } from "./Claim";
 import { states } from "./format";
 import { RunPanel } from "./RunPanel";

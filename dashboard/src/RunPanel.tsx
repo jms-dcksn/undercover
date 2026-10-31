@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { errorMessage, request } from "./api";
+import { errorMessage, post } from "./api";
 import type { QueueRun, TaskState } from "./types";
 
 const taskLabels: Record<TaskState, string> = {
@@ -33,14 +33,10 @@ function RunControls({
     setBusy(true);
     setFailure(null);
     try {
-      await request<QueueRun>("/api/agent/runs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          thread_id: crypto.randomUUID(),
-          claim_id: null,
-          claim_limit: all ? null : Number(limit),
-        }),
+      await post("/api/agent/runs", {
+        thread_id: crypto.randomUUID(),
+        claim_id: null,
+        claim_limit: all ? null : Number(limit),
       });
       await onChange();
     } catch (caught) {

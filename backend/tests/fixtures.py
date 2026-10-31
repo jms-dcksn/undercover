@@ -5,7 +5,7 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from agent import main
+from agent import http
 from backend import db, manage
 from backend.main import app
 
@@ -52,7 +52,7 @@ def claim_run(database):
 @pytest.fixture
 def http_backend(monkeypatch):
     monkeypatch.setattr(
-        main,
+        http,
         "backend",
         lambda: httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test"

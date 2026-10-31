@@ -7,7 +7,6 @@ from fastapi import HTTPException
 from psycopg.errors import UniqueViolation
 from psycopg.types.json import Jsonb
 
-from backend.actions import activity, lock_claim
 from backend.db import Connection, Row, connect
 from backend.models import (
     QueueRunInput,
@@ -16,7 +15,7 @@ from backend.models import (
     RunRecord,
     TasksInput,
 )
-from backend.queries import required
+from backend.records import activity, lock_claim, required
 
 ATTEMPT_SECONDS = 120
 OVERHEAD_SECONDS = 60

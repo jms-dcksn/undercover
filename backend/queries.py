@@ -2,10 +2,9 @@
 
 from decimal import Decimal
 
-from fastapi import HTTPException
-
-from backend.db import Connection, Row, connect
+from backend.db import Row, connect
 from backend.models import ClaimDetail, ClaimSummary, Handler
+from backend.records import required, setting
 
 SUMMARY_SQL = """
     SELECT c.*, cu.payload->>'name' AS customer_name, p.plan,
@@ -16,23 +15,6 @@ SUMMARY_SQL = """
     LEFT JOIN decisions d ON d.claim_id = c.id
     LEFT JOIN payments pm ON pm.claim_id = c.id
 """
-
-
-def required(row: Row | None, label: str) -> Row:
-    """Return a record or the API's standard not-found response."""
-    if row is None:
-        raise HTTPException(404, f"{label} not found.")
-    return row
-
-
-def setting(connection: Connection, key: str) -> Row:
-    """Read one seeded application setting."""
-    row = connection.execute(
-        "SELECT payload FROM settings WHERE key = %s", (key,)
-    ).fetchone()
-    if row is None:
-        raise HTTPException(503, "Database seed is missing. Run the documented setup.")
-    return row["payload"]
 
 
 def summary(claim: Row) -> ClaimSummary:

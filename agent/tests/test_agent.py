@@ -5,7 +5,7 @@ import pytest
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
 from langchain_core.messages import AIMessage
 
-from agent import main
+from agent import config, http, main
 from agent.tools import claim_tools
 from backend import db
 from backend.main import app
@@ -97,7 +97,7 @@ def test_agent_uses_backend_instructions(claim_run, http_backend, monkeypatch):
 
 def test_tools_are_scoped_and_reject_wrong_thread(claim_run, http_backend):
     async def names():
-        async with main.backend() as client:
+        async with http.backend() as client:
             return [tool.name for tool in claim_tools(client, "TEST-CLAIM", claim_run)]
 
     assert asyncio.run(names()) == [
@@ -143,19 +143,23 @@ def test_tool_connection_failure():
 def test_model_name(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.delenv("MODEL_NAME", raising=False)
-    default = main.model()
+    default = config.model()
     assert default.model_name == "deepseek/deepseek-v4.1-flash"
     assert default.reasoning_effort == "low"
     monkeypatch.setenv("MODEL_NAME", "openrouter/free")
-    override = main.model()
+    override = config.model()
     assert override.model_name == "openrouter/free"
     assert override.reasoning_effort is None
 
 
-def test_backend_url(monkeypatch):
-    monkeypatch.setenv("BACKEND_URL", "http://test-server")
-    client = main.backend()
-    assert str(client.base_url) == "http://test-server"
+@pytest.mark.parametrize("origin", [None, "http://test-server:9000"])
+def test_backend_url(origin, monkeypatch):
+    if origin:
+        monkeypatch.setenv("BACKEND_URL", origin)
+    else:
+        monkeypatch.delenv("BACKEND_URL", raising=False)
+    client = http.backend()
+    assert str(client.base_url) == (origin or "http://127.0.0.1:8000")
     asyncio.run(client.aclose())
 
 
@@ -172,7 +176,7 @@ def test_lost_write_response_reads_saved_action(claim_run, monkeypatch, lost_act
             return response
 
     monkeypatch.setattr(
-        main,
+        http,
         "backend",
         lambda: httpx.AsyncClient(transport=LostResponse(), base_url="http://test"),
     )

@@ -1,15 +1,9 @@
 """Single-process agent runs and their observable activity."""
 
-import asyncio
-import logging
-from datetime import UTC, datetime
 from uuid import UUID
 
-from fastapi import HTTPException
-
-from agent.main import arun
 from backend import queue_runs
-from backend.actions import activity, approval_limit, lock_claim, pay_in
+from backend.actions import approval_limit, pay_in
 from backend.db import Connection, connect
 from backend.models import (
     ActivityInput,
@@ -20,10 +14,7 @@ from backend.models import (
     TaskInput,
     TasksInput,
 )
-from backend.queries import required
-
-TIMEOUT_SECONDS = 120
-logger = logging.getLogger(__name__)
+from backend.records import active_run, activity, lock_claim, required
 
 
 def start(claim_id: str, thread_id: str) -> RunRecord:
@@ -80,11 +71,7 @@ def record_event(claim_id: str, run_id: UUID, request: ActivityInput) -> Activit
     """Record tool activity only for the active, unexpired claim run."""
     with connect() as connection:
         lock_claim(connection, claim_id)
-        run = connection.execute(
-            "SELECT * FROM runs WHERE id = %s AND claim_id = %s", (run_id, claim_id)
-        ).fetchone()
-        if not run or run["state"] != "running" or run["deadline"] <= datetime.now(UTC):
-            raise HTTPException(409, "This run is no longer active.")
+        active_run(connection, claim_id, run_id)
         row = connection.execute(
             "INSERT INTO activity (claim_id, run_id, kind, message) "
             "VALUES (%s, %s, %s, %s) RETURNING *",
@@ -149,20 +136,3 @@ def recover_payment(connection: Connection, claim_id: str) -> None:
         and 0 < decision["payout"] <= approval_limit(connection)
     ):
         pay_in(connection, claim_id, PaymentInput(amount=decision["payout"]))
-
-
-async def execute(run: RunRecord) -> None:
-    """Execute a bounded run without blocking the API event loop."""
-    error = None
-    try:
-        async with asyncio.timeout(
-            min(
-                TIMEOUT_SECONDS,
-                max(0, (run.deadline - datetime.now(UTC)).total_seconds()),
-            )
-        ):
-            await arun(run.claim_id, run.thread_id)
-    except Exception as exception:
-        logger.exception("Agent run %s failed", run.id)
-        error = f"Agent run failed ({type(exception).__name__}). Check the server log."
-    await asyncio.to_thread(finish, run, error)

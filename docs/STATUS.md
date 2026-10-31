@@ -81,17 +81,26 @@ Run one backend process. Postgres stores business outcomes and ownership; model 
 
 `GET /api/documents/{document}/sections` lists headings for `wording` or `manual`; `POST /api/documents/search` returns bounded snippets. A scoped attempt reads a section through `/api/claims/{claim}/runs/{attempt}/sections`, saving the exact returned text/version. `/api/claims/{claim}/sections` exposes that claim's read evidence. Claim tools have no whole-document, sign-off, filesystem or database access.
 
+## Code boundaries
+
+- `agent/config.py` owns model setup and the backend origin shared by agents and CLI. `agent/http.py` owns async HTTP transport, activity and lost-response recovery. `tools.py` and `queue_tools.py` define the scoped tools; `main.py` and `queue.py` compose the claim and queue conversations. Neither imports the other's entry point.
+- `backend/main.py` wires HTTP routes to operations. `worker.py` and `coordinator.py` execute agents; `runs.py`, `queue_runs.py` and `recovery.py` manage stored lifecycle state. `actions.py` owns decision/sign-off/payment rules. `records.py` supplies shared transactional record, lock, activity and active-attempt helpers. Storage modules do not import agent execution.
+- `dashboard/src/api.ts` owns HTTP requests and error formatting; `useResource.ts` owns React resource loading and polling. Queue and claim actions share the POST helper. Components use relative API paths; `VITE_API_PROXY` configures the development proxy.
+
+Python dependency tests reject cycles, internal entry-point imports, agent-to-backend imports, agent imports below backend execution and agent service origins outside configuration. Dashboard lint keeps React/polling out of HTTP transport and prevents importing the browser entry point. Review responsibility boundaries as part of every change; these checks cannot prove separation by themselves.
+
 ## Verification
 
 Run `npm run check` with the storage launcher running. It runs Python lint/format/types/tests, dashboard lint/format/types/tests and Playwright serially with the existing coverage thresholds. Do not overlap database-backed diagnostics and Playwright: fixtures reset shared test data.
 
 For an independent temporary test database, run `uv run -m e2e.local`, follow its printed connection instructions, and keep that terminal open. This database is deleted when the helper exits; update the test URL on each launch.
 
-Verified locally with `npm run check`:
+Verified locally on October 31, 2026 after the human-review refactor, with `npm run check` against temporary marked test Postgres:
 
-- Python: 104 tests, 96.58% coverage; format, lint and types pass. Includes pilot-schema upgrades without data loss, scoped HTTP tools, caps/concurrent ownership, exact section evidence, retries/exhaustion, lost responses, payment boundaries and a real backend process restart.
-- Dashboard: 20 tests, 98.85% statement coverage. Playwright MCP checks confirm desktop/mobile layout, no horizontal overflow at 390px, visible keyboard focus and zero application console errors.
+- Python: 108 tests, 96.59% coverage; format, lint and types pass. Includes dependency boundaries, default/overridden backend configuration, pilot-schema upgrades without data loss, scoped HTTP tools, caps/concurrent ownership, exact section evidence, retries/exhaustion, lost responses, payment boundaries and a real backend process restart.
+- Dashboard: 20 tests, 98.85% statement coverage; format, lint and types pass. The browser suite checks mobile fit and application console errors. Earlier interactive harness checks covered desktop/mobile layout and visible keyboard focus; those interactive checks were not repeated for this refactor.
 - Playwright: nine scenarios pass through real HTTP and test Postgres, including capped task progress, retries, two failures left for a handler, reconciliation, refresh, section evidence and existing decision/sign-off/payment flows.
 - Production dashboard build and a scan for configured database/API credentials pass.
+- Dependency lint was also checked against forbidden imports to verify that the new restrictions reject them.
 
 Automated models are scripted and never contact OpenRouter. The development and test targets remain separate; development storage was not rebuilt or used for live model calls during implementation. Live default-model acceptance and decision accuracy remain unverified: rebuilding development outcomes and spending API credit on exactly five claims require explicit authorization. See the remaining checkbox in `docs/PLAN_HARNESS.md`.

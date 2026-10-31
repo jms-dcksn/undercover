@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { Activity } from "./Activity";
-import { useResource } from "./api";
+import { useResource } from "./useResource";
 import { Decision } from "./Decision";
 import { label, money, states } from "./format";
 import { ClaimRecords, RecordFields } from "./Records";

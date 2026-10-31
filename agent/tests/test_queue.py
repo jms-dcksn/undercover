@@ -7,8 +7,9 @@ from langchain_core.messages import AIMessage
 from pydantic import Field
 
 from agent import main, queue
+from agent.queue_tools import queue_tools
 from agent.tests.test_agent import StubModel, reply, scripted_model
-from backend import coordinator, db, queue_runs, runs
+from backend import coordinator, db, queue_runs, worker
 from backend.models import QueueRunInput
 
 
@@ -66,7 +67,7 @@ def test_agent_selects_order_and_isolates_fresh_workers(
         workers.append((claim_id, model))
         return await main.arun(claim_id, thread_id, model)
 
-    monkeypatch.setattr(runs, "arun", child)
+    monkeypatch.setattr(worker, "arun", child)
     assert asyncio.run(queue.arun(parent.id, llm)) == "Untrusted final model text"
     saved = queue_runs.get(parent.id)
     assert saved.state == "completed"
@@ -102,7 +103,7 @@ def test_empty_and_named_queue_agents(database, http_backend, monkeypatch):
             claim_id, thread_id, scripted_model("refer", "0.00", False)
         )
 
-    monkeypatch.setattr(runs, "arun", child)
+    monkeypatch.setattr(worker, "arun", child)
     asyncio.run(queue.arun(parent.id, parent_model(parent.snapshot)))
     assert queue_runs.get(parent.id).tasks[0].state == "left_for_handler"
     with db.connect() as connection:
@@ -161,7 +162,7 @@ def test_recovered_coordinator_watches_existing_attempt_without_delegating():
         ) as client:
             tool = next(
                 tool
-                for tool in queue.queue_tools(client, "parent")
+                for tool in queue_tools(client, "parent")
                 if tool.name == "work_claim"
             )
             return await tool.ainvoke({"claim_id": "claim"})

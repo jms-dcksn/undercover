@@ -31,6 +31,9 @@ When the last phase is done, run `npm run check` and report the results.
 
 ## Rules
 
+- Before editing, inspect nearby callers, configuration and import direction. State which module owns execution, transport, persistence and business rules; keep changes within those responsibilities.
+- Before committing, review the diff for repeated service origins, entry-point imports, cycles and mixed responsibilities across agent, backend and dashboard. Document the resulting module boundaries in `docs/STATUS.md`.
+- Keep the dependency checks in `backend/tests/test_architecture.py` and dashboard import lint rules passing. When moving a responsibility, move its test injection point and retain behavioral regression coverage; a clean dependency graph alone does not verify behavior.
 - Add tests with each change. Tests never call a model; use a stub model.
 - Outside a plan, commit each change once you have checked it.
 - Run `npm run check` before you hand work over.

@@ -1,14 +1,14 @@
 """Start or watch one backend-managed queue run."""
 
 import argparse
-import os
 import time
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from uuid import uuid4
 
 import httpx
-from dotenv import load_dotenv
+
+from agent.config import backend_url
 
 
 def progress(run: dict) -> str:
@@ -91,11 +91,8 @@ def main() -> None:
     scope.add_argument("--limit", type=positive)
     scope.add_argument("--claim")
     args = parser.parse_args()
-    load_dotenv()
     try:
-        with httpx.Client(
-            base_url=os.getenv("BACKEND_URL", "http://127.0.0.1:8000"), timeout=30
-        ) as client:
+        with httpx.Client(base_url=backend_url(), timeout=30) as client:
             failed = run(client, args.limit, args.claim)
     except (httpx.HTTPError, TimeoutError) as error:
         raise SystemExit(f"Queue watch stopped: {error}") from error
