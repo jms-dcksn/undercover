@@ -15,13 +15,14 @@ dependencies = [
     "langchain>=1.4.2",
     "langchain-mcp-adapters>=0.3.2",
     "langchain-openai>=1.6.2",
-    "langfuse>=4.16.0",
+    "langfuse>=5.1.0,<6",
     "langgraph-checkpoint-postgres>=3.1.2",
     "mangum>=0.22.0",
     "nbformat>=5.11.1",
     "ollama>=0.6.2",
     "openai>=3.19.2",
     "openrouter>=1.2.1",
+    "opentelemetry-api>=1.45.0",
     "pandas>=3.0.6",
     "plotly>=7.1.0",
     "psycopg[binary]>=3.3.6",
@@ -50,7 +51,7 @@ server = [
 ]
 
 [tool.ruff]
-include = ["backend/**/*.py", "agent/**/*.py", "e2e/**/*.py"]
+include = ["backend/**/*.py", "agent/**/*.py", "e2e/**/*.py", "telemetry.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "SIM", "UP", "PL", "S", "PT", "FAST", "C90", "PLR1702"]
@@ -69,14 +70,14 @@ pythonpath = ["."]
 addopts = "--import-mode=importlib --cov --cov-report=term-missing"
 
 [tool.coverage.run]
-source = ["backend", "agent"]
+source = ["backend", "agent", "telemetry"]
 omit = ["*/tests/*"]
 
 [tool.coverage.report]
 fail_under = 80
 
 [tool.pyright]
-include = ["backend", "agent", "e2e"]
+include = ["backend", "agent", "e2e", "telemetry.py"]
 venvPath = "."
 venv = ".venv"
 pythonVersion = "3.12"

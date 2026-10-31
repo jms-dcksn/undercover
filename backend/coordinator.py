@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 import psycopg
 
+import telemetry
 from agent.queue import arun
 from backend import queue_runs, recovery, worker
 from backend.db import DatabaseNotConfigured
@@ -44,6 +45,20 @@ async def invoke(parent: QueueRunRecord) -> None:
 
 
 async def execute(parent: QueueRunRecord) -> None:
+    """Trace the complete queue lifecycle, including recovery invocations."""
+    with telemetry.observation(
+        "process-queue", str(parent.id), {"run_id": str(parent.id)}
+    ) as observation:
+        await _execute(parent)
+        if observation:
+            saved = await asyncio.to_thread(queue_runs.get, parent.id)
+            observation.update(
+                output={"state": saved.state},
+                level="ERROR" if saved.state == "failed" else "DEFAULT",
+            )
+
+
+async def _execute(parent: QueueRunRecord) -> None:
     """Execute bounded queue planning and clean up any unfinished ownership."""
     try:
         if parent.deadline <= datetime.now(UTC):
@@ -66,6 +81,22 @@ async def execute(parent: QueueRunRecord) -> None:
 
 
 async def execute_named(attempt: RunRecord) -> None:
+    """Trace named work and its retries as one interaction."""
+    with telemetry.observation(
+        "process-named-claim",
+        str(attempt.parent_id or attempt.id),
+        {"run_id": str(attempt.parent_id or attempt.id)},
+    ) as observation:
+        await _execute_named(attempt)
+        if observation and attempt.parent_id:
+            saved = await asyncio.to_thread(queue_runs.get, attempt.parent_id)
+            observation.update(
+                output={"state": saved.state},
+                level="ERROR" if saved.state == "failed" else "DEFAULT",
+            )
+
+
+async def _execute_named(attempt: RunRecord) -> None:
     """Retain the pilot named-claim entry point with automatic bounded retries."""
     if attempt.parent_id is None:
         raise ValueError("Named work requires a parent run.")

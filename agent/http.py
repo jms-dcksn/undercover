@@ -5,12 +5,19 @@ from typing import Any
 
 import httpx
 
+import telemetry
 from agent.config import backend_url
+
+
+async def trace_request(request: httpx.Request) -> None:
+    telemetry.inject_headers(request.headers)
 
 
 def backend() -> httpx.AsyncClient:
     """Create the shared asynchronous backend client."""
-    return httpx.AsyncClient(base_url=backend_url(), timeout=30)
+    return httpx.AsyncClient(
+        base_url=backend_url(), timeout=30, event_hooks={"request": [trace_request]}
+    )
 
 
 class ClaimHTTP:

@@ -8,6 +8,7 @@ import psycopg
 from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import JSONResponse
 
+import telemetry
 from backend import (
     actions,
     coordinator,
@@ -61,6 +62,7 @@ async def lifespan(application: FastAPI):
         watcher.cancel()
         with suppress(asyncio.CancelledError):
             await watcher
+        await asyncio.to_thread(telemetry.shutdown)
 
 
 app = FastAPI(title="UnderCover", lifespan=lifespan)
@@ -217,11 +219,16 @@ def write_queue_tasks(run_id: UUID, request: TasksInput) -> QueueRunRecord:
     "/api/agent/runs/{run_id}/delegate", operation_id="delegate_claim", status_code=202
 )
 def delegate_claim(
-    run_id: UUID, request: DelegateInput, background_tasks: BackgroundTasks
+    run_id: UUID,
+    request: DelegateInput,
+    background_tasks: BackgroundTasks,
+    http_request: Request,
 ) -> RunRecord:
     """Reserve a cap slot and start a fresh bounded claim attempt."""
     attempt = queue_runs.delegate(run_id, request.claim_id)
-    background_tasks.add_task(worker.execute, attempt)
+    background_tasks.add_task(
+        worker.execute, attempt, http_request.headers.get("traceparent")
+    )
     return attempt
 
 

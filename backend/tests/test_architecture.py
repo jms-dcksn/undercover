@@ -7,12 +7,17 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def product_modules() -> dict[str, ast.Module]:
+    paths = [ROOT / "telemetry.py"]
+    paths.extend(
+        path
+        for package in ("agent", "backend")
+        for path in (ROOT / package).glob("*.py")
+    )
     return {
         ".".join(path.relative_to(ROOT).with_suffix("").parts): ast.parse(
             path.read_text()
         )
-        for package in ("agent", "backend")
-        for path in (ROOT / package).glob("*.py")
+        for path in paths
     }
 
 
@@ -31,6 +36,10 @@ def test_dependencies_point_toward_shared_modules():
     for module, tree in product_modules().items():
         dependencies = imports(tree)
         assert "backend.main" not in dependencies, module
+        if module == "telemetry":
+            assert not any(
+                name.startswith(("agent", "backend")) for name in dependencies
+            )
         if module.startswith("agent."):
             assert not any(name.startswith("backend") for name in dependencies), module
             entry_points = {"agent.main", "agent.queue", "agent.batch"}

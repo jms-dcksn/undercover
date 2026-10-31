@@ -10,6 +10,11 @@ from backend import db, manage
 from backend.main import app
 
 
+@pytest.fixture(autouse=True)
+def disable_external_tracing(monkeypatch):
+    monkeypatch.setenv("LANGFUSE_TRACING_ENABLED", "false")
+
+
 @pytest.fixture
 def database(monkeypatch):
     url = db.test_database_url()
@@ -55,6 +60,8 @@ def http_backend(monkeypatch):
         http,
         "backend",
         lambda: httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test"
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
+            event_hooks={"request": [http.trace_request]},
         ),
     )

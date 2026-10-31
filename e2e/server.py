@@ -13,6 +13,7 @@ def main() -> None:
     os.environ["DATABASE_URL"] = db.test_database_url()
     os.environ["BACKEND_URL"] = "http://127.0.0.1:8010"
     os.environ["OPENROUTER_API_KEY"] = ""
+    os.environ["LANGFUSE_TRACING_ENABLED"] = "false"
     fixtures.prepare()
     worker.arun = model.run
     coordinator.arun = model.run_queue

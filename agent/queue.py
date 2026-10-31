@@ -6,6 +6,7 @@ from uuid import UUID
 from langchain.agents import create_agent
 from langchain_core.language_models import BaseChatModel
 
+import telemetry
 from agent import config, http
 from agent.queue_tools import queue_tools
 from agent.retry import middleware
@@ -30,6 +31,7 @@ async def arun(run_id: UUID, llm: BaseChatModel | None = None) -> str:
             middleware=[middleware()],
             tools=queue_tools(client, str(run_id)),
             system_prompt=instructions.json()["queue"],
+            name="queue-agent",
         )
         result = await agent.ainvoke(
             {
@@ -41,6 +43,7 @@ async def arun(run_id: UUID, llm: BaseChatModel | None = None) -> str:
                 ]
             },
             config={
+                "callbacks": telemetry.callbacks(),
                 "configurable": {"thread_id": parent["thread_id"]},
                 "recursion_limit": BASE_STEPS + count * STEPS_PER_CLAIM,
             },
