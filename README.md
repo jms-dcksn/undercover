@@ -12,7 +12,7 @@ _If you're looking at this in VS Code or Cursor, right-click `README.md` in the 
 
 ## Run this fork
 
-The pilot uses local Postgres. After `uv sync` and `npm install`, run `uv run -m backend.local` in one terminal and `npm run dev` in another. The database launcher configures `.env` and seeds the 25 claims; add your `OPENROUTER_API_KEY` for real agent runs. Open `http://localhost:5173`.
+The pilot uses local Postgres. After `uv sync` and `npm install`, run `npm start` to launch storage, the backend and the dashboard. Press Ctrl+C to stop them together. The database launcher configures `.env` and seeds the 25 claims; add your `OPENROUTER_API_KEY` for real agent runs. Open `http://localhost:5173`.
 
 Run `npm run check` while Postgres is running. Development data persists in the ignored `.local/postgres` directory; tests use a separate database. See [docs/STATUS.md](docs/STATUS.md) for setup and limitations.
 

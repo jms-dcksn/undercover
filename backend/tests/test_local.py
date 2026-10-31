@@ -1,9 +1,71 @@
+import asyncio
+import sys
+from types import SimpleNamespace
+
 import psycopg
 import pytest
 from dotenv import dotenv_values
 from pgserver.postgres_server import get_server
 
 from backend import db, local
+
+
+@pytest.mark.parametrize("result", [0, 1, KeyboardInterrupt()])
+def test_start_app_waits_for_storage_and_always_stops_it(result, tmp_path, monkeypatch):
+    events = []
+    server = SimpleNamespace(cleanup=lambda: events.append("stopped"))
+    monkeypatch.setattr(sys, "argv", ["local", "--app"])
+    monkeypatch.setattr(local, "DATA_DIRECTORY", tmp_path / "postgres")
+    monkeypatch.setattr(local, "get_server", lambda *args, **kwargs: server)
+    monkeypatch.setattr(local, "configure", lambda *args: events.append("ready"))
+
+    async def app():
+        events.append("app")
+        if isinstance(result, KeyboardInterrupt):
+            raise result
+        return result
+
+    monkeypatch.setattr(local, "run_app", app)
+    if isinstance(result, KeyboardInterrupt):
+        local.main()
+    else:
+        with pytest.raises(SystemExit) as error:
+            local.main()
+        assert error.value.code == result
+    assert events == ["ready", "app", "stopped"]
+
+
+def test_dev_command_runs_from_repo_root(monkeypatch):
+    calls = []
+
+    async def wait():
+        return 3
+
+    async def spawn(command, **kwargs):
+        calls.append((command, kwargs))
+        return SimpleNamespace(wait=wait)
+
+    monkeypatch.setattr(local.asyncio, "create_subprocess_shell", spawn)
+    assert asyncio.run(local.run_app()) == 3
+    assert calls == [("npm run dev", {"cwd": local.manage.ROOT})]
+
+
+def test_interrupt_waits_for_app_shutdown(monkeypatch):
+    waits = []
+
+    async def wait():
+        waits.append("wait")
+        if len(waits) == 1:
+            raise asyncio.CancelledError
+        return 0
+
+    async def spawn(*args, **kwargs):
+        return SimpleNamespace(wait=wait)
+
+    monkeypatch.setattr(local.asyncio, "create_subprocess_shell", spawn)
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(local.run_app())
+    assert waits == ["wait", "wait"]
 
 
 def test_local_setup_preserves_settings_and_data_after_restart(tmp_path, monkeypatch):

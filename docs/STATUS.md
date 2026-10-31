@@ -6,21 +6,21 @@ Handlers can start all waiting claims, a positive distinct-claim cap (the trial 
 
 ## Setup and upgrades
 
-Install and start storage in one terminal (macOS or Windows):
+Install dependencies, then start everything in one terminal (macOS or Windows):
 
 ```text
 uv sync
 npm install
-uv run -m backend.local
+npm start
 ```
 
-Keep it running, then start the app in another terminal:
+`npm start` prepares local Postgres before launching the backend and dashboard. Press Ctrl+C to stop them together; database files persist. To run storage and the app in separate terminals instead, use `uv run -m backend.local`, then:
 
 ```text
 npm run dev
 ```
 
-Open `http://localhost:5173`; FastAPI runs on port 8000. The launcher keeps data in ignored `.local/postgres`, initializes/upgrades the schema, seeds the 25 development claims and prepares a separate marked test database. It updates only `DATABASE_URL` and `TEST_DATABASE_URL` in ignored `.env`. Press Enter in the storage terminal to stop Postgres without deleting its data.
+Open `http://localhost:5173`; FastAPI runs on port 8000. The launcher keeps data in ignored `.local/postgres`, initializes/upgrades the schema, seeds the 25 development claims and prepares a separate marked test database. It updates only `DATABASE_URL` and `TEST_DATABASE_URL` in ignored `.env`. In storage-only mode, press Enter to stop Postgres without deleting its data.
 
 For an existing local Postgres installation, stop the backend, configure distinct development/test databases in `.env`, then run:
 
@@ -95,9 +95,9 @@ Run `npm run check` with the storage launcher running. It runs Python lint/forma
 
 For an independent temporary test database, run `uv run -m e2e.local`, follow its printed connection instructions, and keep that terminal open. This database is deleted when the helper exits; update the test URL on each launch.
 
-Verified locally on October 31, 2026 after the human-review refactor, with `npm run check` against temporary marked test Postgres:
+Verified locally on October 31, 2026 after the human-review refactor and one-command launcher, with `npm run check` against temporary marked test Postgres:
 
-- Python: 108 tests, 96.59% coverage; format, lint and types pass. Includes dependency boundaries, default/overridden backend configuration, pilot-schema upgrades without data loss, scoped HTTP tools, caps/concurrent ownership, exact section evidence, retries/exhaustion, lost responses, payment boundaries and a real backend process restart.
+- Python: 113 tests, 97.16% coverage; format, lint and types pass. Includes launcher startup order, exit status and interruption cleanup, dependency boundaries, default/overridden backend configuration, pilot-schema upgrades without data loss, scoped HTTP tools, caps/concurrent ownership, exact section evidence, retries/exhaustion, lost responses, payment boundaries and a real backend process restart.
 - Dashboard: 20 tests, 98.85% statement coverage; format, lint and types pass. The browser suite checks mobile fit and application console errors. Earlier interactive harness checks covered desktop/mobile layout and visible keyboard focus; those interactive checks were not repeated for this refactor.
 - Playwright: nine scenarios pass through real HTTP and test Postgres, including capped task progress, retries, two failures left for a handler, reconciliation, refresh, section evidence and existing decision/sign-off/payment flows.
 - Production dashboard build and a scan for configured database/API credentials pass.

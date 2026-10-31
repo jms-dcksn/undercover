@@ -1,5 +1,7 @@
 """Run persistent local Postgres: uv run -m backend.local."""
 
+import argparse
+import asyncio
 import os
 from pathlib import Path
 
@@ -36,15 +38,35 @@ def configure(server: PostgresServer, env_file: Path) -> None:
     manage.initialize_test()
 
 
+async def run_app() -> int:
+    """Run the fixed dev command through the platform shell, including npm.cmd."""
+    process = await asyncio.create_subprocess_shell("npm run dev", cwd=manage.ROOT)
+    try:
+        return await process.wait()
+    except asyncio.CancelledError:
+        await process.wait()
+        raise
+
+
 def main() -> None:
     """Keep the local server running and retain its data after shutdown."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--app", action="store_true", help="Also start the app via npm."
+    )
+    args = parser.parse_args()
     DATA_DIRECTORY.parent.mkdir(parents=True, exist_ok=True)
     server = get_server(DATA_DIRECTORY, cleanup_mode="stop")
     try:
         configure(server, manage.ROOT / ".env")
         print("Local Postgres is ready. Connections saved to .env.")
+        if args.app:
+            print("Starting the app. Press Ctrl+C to stop the app and Postgres.")
+            raise SystemExit(asyncio.run(run_app()))
         print("Data is kept in .local/postgres. Run npm run dev in another terminal.")
         input("Press Enter to stop Postgres and retain its data. ")
+    except KeyboardInterrupt:
+        pass
     finally:
         server.cleanup()
 
